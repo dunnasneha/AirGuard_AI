@@ -1,0 +1,117 @@
+import { AQICategory, CurrentPollutants } from '../types/index.js';
+
+/**
+ * Calculates AQI based on National Air Quality Index (NAQI / CPCB)
+ * Breakpoints for PM2.5 (24-hr avg in µg/m³):
+ * Good: 0 - 30 (AQI 0 - 50)
+ * Moderate / Satisfactory: 31 - 60 (AQI 51 - 100)
+ * Moderate: 61 - 90 (AQI 101 - 200)
+ * Poor: 91 - 120 (AQI 201 - 300)
+ * Very Poor: 121 - 250 (AQI 301 - 400)
+ * Severe: > 250 (AQI 401 - 500)
+ */
+
+interface Breakpoint {
+  cLow: number;
+  cHigh: number;
+  iLow: number;
+  iHigh: number;
+  category: AQICategory;
+}
+
+const PM25_BREAKPOINTS: Breakpoint[] = [
+  { cLow: 0, cHigh: 30, iLow: 0, iHigh: 50, category: 'Good' },
+  { cLow: 31, cHigh: 60, iLow: 51, iHigh: 100, category: 'Good' },
+  { cLow: 61, cHigh: 90, iLow: 101, iHigh: 200, category: 'Moderate' },
+  { cLow: 91, cHigh: 120, iLow: 201, iHigh: 300, category: 'Poor' },
+  { cLow: 121, cHigh: 250, iLow: 301, iHigh: 400, category: 'Very Poor' },
+  { cLow: 251, cHigh: 500, iLow: 401, iHigh: 500, category: 'Severe' },
+];
+
+const PM10_BREAKPOINTS: Breakpoint[] = [
+  { cLow: 0, cHigh: 50, iLow: 0, iHigh: 50, category: 'Good' },
+  { cLow: 51, cHigh: 100, iLow: 51, iHigh: 100, category: 'Good' },
+  { cLow: 101, cHigh: 250, iLow: 101, iHigh: 200, category: 'Moderate' },
+  { cLow: 251, cHigh: 350, iLow: 201, iHigh: 300, category: 'Poor' },
+  { cLow: 351, cHigh: 430, iLow: 301, iHigh: 400, category: 'Very Poor' },
+  { cLow: 431, cHigh: 600, iLow: 401, iHigh: 500, category: 'Severe' },
+];
+
+function calculateSubIndex(conc: number, breakpoints: Breakpoint[]): { aqi: number; category: AQICategory } {
+  if (conc <= 0) return { aqi: 15, category: 'Good' };
+
+  for (const bp of breakpoints) {
+    if (conc >= bp.cLow && conc <= bp.cHigh) {
+      const aqi = Math.round(
+        ((bp.iHigh - bp.iLow) / (bp.cHigh - bp.cLow)) * (conc - bp.cLow) + bp.iLow
+      );
+      return { aqi, category: bp.category };
+    }
+  }
+
+  // Extreme severe condition
+  const last = breakpoints[breakpoints.length - 1];
+  return { aqi: Math.min(500, Math.round(conc)), category: last.category };
+}
+
+export function getAQICategory(aqi: number): AQICategory {
+  if (aqi <= 100) return 'Good';
+  if (aqi <= 200) return 'Moderate';
+  if (aqi <= 300) return 'Poor';
+  if (aqi <= 400) return 'Very Poor';
+  return 'Severe';
+}
+
+export function calculateCompositeAQI(
+  pm2_5: number,
+  pm10: number,
+  ozone: number = 0,
+  no2: number = 0,
+  so2: number = 0,
+  co: number = 0
+): CurrentPollutants {
+  const pm25Sub = calculateSubIndex(pm2_5, PM25_BREAKPOINTS);
+  const pm10Sub = calculateSubIndex(pm10, PM10_BREAKPOINTS);
+
+  let dominantPollutant = 'PM2.5';
+  let aqi = pm25Sub.aqi;
+
+  if (pm10Sub.aqi > pm25Sub.aqi) {
+    dominantPollutant = 'PM10';
+    aqi = pm10Sub.aqi;
+  }
+
+  const category = getAQICategory(aqi);
+
+  let healthAdvice = '';
+  switch (category) {
+    case 'Good':
+      healthAdvice = 'Air quality is satisfactory. Ideal conditions for outdoor physical activities and natural ventilation.';
+      break;
+    case 'Moderate':
+      healthAdvice = 'Air quality is acceptable. Sensitive individuals with respiratory conditions should monitor prolonged heavy exertion.';
+      break;
+    case 'Poor':
+      healthAdvice = 'Air quality is poor. Children, seniors, and individuals with breathing conditions should limit intense outdoor workouts.';
+      break;
+    case 'Very Poor':
+      healthAdvice = 'Air quality is very poor. Reduce prolonged outdoor exposure, reschedule high-intensity workouts, and keep indoor filtration running.';
+      break;
+    case 'Severe':
+      healthAdvice = 'Severe pollution alert. Avoid outdoor exertion, keep windows tightly closed, run certified air purifiers, and wear N95/FFP2 masks outdoors.';
+      break;
+  }
+
+  return {
+    aqi,
+    category,
+    pm2_5: Math.round(pm2_5 * 10) / 10,
+    pm10: Math.round(pm10 * 10) / 10,
+    ozone: Math.round(ozone * 10) / 10,
+    no2: Math.round(no2 * 10) / 10,
+    so2: Math.round(so2 * 10) / 10,
+    co: Math.round(co * 10) / 10,
+    dominantPollutant,
+    healthAdvice,
+  };
+}

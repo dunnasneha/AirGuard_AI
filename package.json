@@ -1,0 +1,21 @@
+{
+  "name": "airwise-ai",
+  "version": "1.0.0",
+  "description": "Urban Air Quality Assistant - GenAI-powered platform helping families navigate winter smog and urban pollution",
+  "author": "AirWise AI Team",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "dev": "node scripts/dev.js",
+    "build:client": "npm --prefix client run build",
+    "build:server": "npm --prefix server run build",
+    "build": "npm run build:server && npm run build:client",
+    "test:client": "npm --prefix client run test",
+    "test:server": "npm --prefix server run test",
+    "test": "npm run test:server && npm run test:client",
+    "start": "npm --prefix server run start",
+    "install:all": "npm --prefix server install && npm --prefix client install"
+  }
+}
