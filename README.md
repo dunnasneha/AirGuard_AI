@@ -104,7 +104,7 @@ Google Gemini is integrated directly into the product workflow through a secure,
 
 - **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, Lucide React icons, Recharts
 - **Backend**: Node.js, Express, TypeScript, Axios, CORS, Dotenv
-- **AI Engine**: Google Gemini API (`@google/generative-ai`), Gemini 1.5 Flash
+- **AI Engine**: Google Gemini API (`@google/genai`), `gemini-4-hydrogen`
 - **External Data**: Open-Meteo Air Quality API, Open-Meteo Weather Forecast API, Open-Meteo Geocoding API (free, open, no GCP credits required)
 - **Testing**: Vitest, React Testing Library, JSDOM
 
@@ -129,7 +129,7 @@ Copy `.env.example` to `.env` in the root or server directory:
 
 ```env
 # Server Port
-PORT=5000
+PORT=3000
 NODE_ENV=development
 
 # Google Gemini API Key (Backend Only — NEVER exposed to browser)
@@ -161,31 +161,16 @@ npm run install:all
 
 ---
 
-## Running Backend
-
 ```bash
-cd server
 npm run dev
 ```
-The server will start on `http://localhost:5000`.  
-Verify health: `http://localhost:5000/api/health`
+This builds the React client (`client/dist`) and starts the Express backend on `http://localhost:3000`, serving both the frontend and `/api/*` endpoints.
+Verify health: `http://localhost:3000/api/health`
 
----
-
-## Running Frontend
-
-In a separate terminal:
-
+For separate frontend/backend dev servers during local development:
 ```bash
-cd client
-npm run dev
-```
-The Vite development server will start on `http://localhost:5173`.
-
-Alternatively, run both frontend and backend concurrently from the root directory:
-
-```bash
-npm run dev
+npm run dev:server
+npm run dev:client
 ```
 
 ---
@@ -205,11 +190,11 @@ npm run test:server
 npm run test:client
 ```
 
-All 11 unit tests validate:
-- AQI breakpoint mathematics & classification
+All unit tests validate:
+- AQI breakpoint mathematics & decimal concentration classification
 - Transparent transport emissions and CO2 savings
-- Diurnal inversion window computation
-- Input sanitization & rate limiting
+- Input validation, sanitization, and malformed payload rejection
+- Fallback resilience for AI action plan, chat, and comparator services
 - Frontend render integrity and accessibility
 
 ---

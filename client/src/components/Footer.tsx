@@ -54,13 +54,27 @@ export const Footer: React.FC<{ onSelectTab: (tab: string) => void }> = ({ onSel
               Data & AI Sources
             </h4>
             <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-              <li className="flex items-center space-x-1.5">
-                <span>Open-Meteo Air Quality API</span>
-                <ExternalLink className="h-3 w-3" />
+              <li>
+                <a
+                  href="https://open-meteo.com/en/docs/air-quality-api"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center space-x-1.5 hover:text-emerald-600 dark:hover:text-emerald-400"
+                >
+                  <span>Open-Meteo Air Quality API</span>
+                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                </a>
               </li>
-              <li className="flex items-center space-x-1.5">
-                <span>Open-Meteo Weather Model</span>
-                <ExternalLink className="h-3 w-3" />
+              <li>
+                <a
+                  href="https://open-meteo.com/en/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center space-x-1.5 hover:text-emerald-600 dark:hover:text-emerald-400"
+                >
+                  <span>Open-Meteo Weather Model</span>
+                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                </a>
               </li>
               <li className="flex items-center space-x-1.5">
                 <span>Google Gemini AI (Backend Endpoint)</span>

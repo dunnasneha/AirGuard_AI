@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import {
   AIDailyPlan,
   ChatMessage,
@@ -7,14 +7,28 @@ import {
   UserProfile,
 } from '../types/index.js';
 
-const API_KEY = process.env.GEMINI_API_KEY || '';
+let cachedAI: GoogleGenAI | null = null;
+let cachedKey: string | null = null;
 
-let genAI: GoogleGenerativeAI | null = null;
-if (API_KEY) {
+function getGeminiClient(): GoogleGenAI | null {
+  const apiKey = process.env.GEMINI_API_KEY || '';
+  if (!apiKey) return null;
+  if (cachedAI && cachedKey === apiKey) return cachedAI;
+
   try {
-    genAI = new GoogleGenerativeAI(API_KEY);
+    cachedAI = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+    cachedKey = apiKey;
+    return cachedAI;
   } catch (err) {
-    console.error('Failed to initialize GoogleGenerativeAI client:', err);
+    console.error('Failed to initialize GoogleGenAI client:', err);
+    return null;
   }
 }
 
@@ -43,26 +57,51 @@ export async function generateDailyActionPlan(
   profile: UserProfile,
   env: EnvironmentalContext
 ): Promise<AIDailyPlan> {
+  const locName = env?.location?.name || 'your city';
+  const locCountry = env?.location?.country || '';
+  const aqiVal = env?.airQuality?.aqi ?? 100;
+  const aqiCat = env?.airQuality?.category || 'Moderate';
+  const domPollutant = env?.airQuality?.dominantPollutant || 'PM2.5';
+  const pm25Val = env?.airQuality?.pm2_5 ?? 45;
+  const pm10Val = env?.airQuality?.pm10 ?? 75;
+  const ozoneVal = env?.airQuality?.ozone ?? 30;
+  const tempVal = env?.weather?.temperature ?? 24;
+  const humidityVal = env?.weather?.humidity ?? 55;
+  const windVal = env?.weather?.windSpeed ?? 8;
+  const condDesc = env?.weather?.conditionDescription || 'Clear';
+  const bestLabel = env?.windows?.bestOutdoorWindow?.label || '2:00 PM – 5:00 PM';
+  const bestDesc = env?.windows?.bestOutdoorWindow?.description || 'Lower afternoon particulate window';
+  const peakLabel = env?.windows?.peakPollutionWindow?.label || '6:00 AM – 9:00 AM';
+  const peakDesc = env?.windows?.peakPollutionWindow?.description || 'Morning thermal inversion peak';
+
+  const adultsCount = profile?.householdMembers?.adults ?? 1;
+  const childrenCount = profile?.householdMembers?.children ?? 0;
+  const elderlyCount = profile?.householdMembers?.elderly ?? 0;
+  const sensitiveCount = profile?.householdMembers?.sensitive ?? 0;
+  const indoorSetup = Array.isArray(profile?.indoorEnvironment) && profile.indoorEnvironment.length > 0
+    ? profile.indoorEnvironment.join(', ')
+    : 'Standard ventilation';
+
   const prompt = `Generate a personalized daily pollution action plan based on the following verified environmental data and user profile.
 
 ENVIRONMENTAL CONTEXT (DO NOT ALTER THESE VALUES):
-- Location: ${env.location.name}, ${env.location.country}
-- Current AQI: ${env.airQuality.aqi} (${env.airQuality.category})
-- Dominant Pollutant: ${env.airQuality.dominantPollutant}
-- PM2.5: ${env.airQuality.pm2_5} µg/m³
-- PM10: ${env.airQuality.pm10} µg/m³
-- Ozone: ${env.airQuality.ozone} µg/m³
-- Temperature: ${env.weather.temperature}°C, Humidity: ${env.weather.humidity}%, Wind: ${env.weather.windSpeed} km/h
-- Condition: ${env.weather.conditionDescription}
-- Better Outdoor Window: ${env.windows.bestOutdoorWindow.label} (${env.windows.bestOutdoorWindow.description})
-- Higher Pollution Window: ${env.windows.peakPollutionWindow.label} (${env.windows.peakPollutionWindow.description})
+- Location: ${locName}${locCountry ? `, ${locCountry}` : ''}
+- Current AQI: ${aqiVal} (${aqiCat})
+- Dominant Pollutant: ${domPollutant}
+- PM2.5: ${pm25Val} µg/m³
+- PM10: ${pm10Val} µg/m³
+- Ozone: ${ozoneVal} µg/m³
+- Temperature: ${tempVal}°C, Humidity: ${humidityVal}%, Wind: ${windVal} km/h
+- Condition: ${condDesc}
+- Better Outdoor Window: ${bestLabel} (${bestDesc})
+- Higher Pollution Window: ${peakLabel} (${peakDesc})
 
 USER PROFILE:
-- Lifestyle: ${profile.lifestyle}
-- Household Members: Adults: ${profile.householdMembers.adults}, Children: ${profile.householdMembers.children}, Elderly: ${profile.householdMembers.elderly}, Sensitive/Asthma: ${profile.householdMembers.sensitive}
-- Daily Commute: ${profile.commuteMethod}
-- Outdoor Activity: ${profile.outdoorActivity}
-- Indoor Setup: ${profile.indoorEnvironment.join(', ') || 'Standard ventilation'}
+- Lifestyle: ${profile?.lifestyle || 'Student'}
+- Household Members: Adults: ${adultsCount}, Children: ${childrenCount}, Elderly: ${elderlyCount}, Sensitive/Asthma: ${sensitiveCount}
+- Daily Commute: ${profile?.commuteMethod || 'Public transport'}
+- Outdoor Activity: ${profile?.outdoorActivity || 'Walking'}
+- Indoor Setup: ${indoorSetup}
 
 Respond with ONLY a raw JSON object (no markdown quotes, no triple backticks) matching this exact schema:
 {
@@ -140,20 +179,32 @@ Respond with ONLY a raw JSON object (no markdown quotes, no triple backticks) ma
 }
 `;
 
-  if (genAI && API_KEY) {
+  const ai = getGeminiClient();
+  if (ai) {
     try {
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        systemInstruction: SYSTEM_PROMPT,
+      const response = await ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: prompt,
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+        },
       });
 
-      const result = await model.generateContent(prompt);
-      const text = result.response.text();
+      const text = response.text ?? '';
       const cleaned = cleanJsonResponse(text);
       const parsed = JSON.parse(cleaned);
+      const fallback = generateRuleBasedDailyPlan(profile, env);
 
       return {
-        ...parsed,
+        summary: typeof parsed?.summary === 'string' ? parsed.summary : fallback.summary,
+        air_quality_explanation: typeof parsed?.air_quality_explanation === 'string' ? parsed.air_quality_explanation : fallback.air_quality_explanation,
+        actions: Array.isArray(parsed?.actions) && parsed.actions.length > 0 ? parsed.actions : fallback.actions,
+        indoor_guidance: Array.isArray(parsed?.indoor_guidance) ? parsed.indoor_guidance : fallback.indoor_guidance,
+        commute_guidance: Array.isArray(parsed?.commute_guidance) ? parsed.commute_guidance : fallback.commute_guidance,
+        family_guidance: Array.isArray(parsed?.family_guidance) ? parsed.family_guidance : fallback.family_guidance,
+        sustainability_tip: typeof parsed?.sustainability_tip === 'string' ? parsed.sustainability_tip : fallback.sustainability_tip,
+        safety_note: typeof parsed?.safety_note === 'string' ? parsed.safety_note : fallback.safety_note,
         generatedBy: 'gemini',
         generatedAt: new Date().toISOString(),
       };
@@ -177,14 +228,27 @@ export async function getAirWiseChatResponse(
 ): Promise<string> {
   const isMedicalQuery = /\b(cure|disease|medicine|prescription|inhaler dosage|doctor|symptom|chest pain|attack)\b/i.test(message);
 
+  const locName = env?.location?.name || 'your city';
+  const locCountry = env?.location?.country || '';
+  const aqiVal = env?.airQuality?.aqi ?? 100;
+  const aqiCat = env?.airQuality?.category || 'Moderate';
+  const pm25Val = env?.airQuality?.pm2_5 ?? 45;
+  const pm10Val = env?.airQuality?.pm10 ?? 75;
+  const tempVal = env?.weather?.temperature ?? 24;
+  const humidityVal = env?.weather?.humidity ?? 55;
+  const windVal = env?.weather?.windSpeed ?? 8;
+  const condDesc = env?.weather?.conditionDescription || 'Clear';
+  const bestLabel = env?.windows?.bestOutdoorWindow?.label || '2:00 PM – 5:00 PM';
+  const peakLabel = env?.windows?.peakPollutionWindow?.label || '6:00 AM – 9:00 AM';
+
   const contextPrompt = `You are AirWise Assistant.
 CURRENT USER CONTEXT:
-- Location: ${env.location.name}, ${env.location.country}
-- Air Quality: AQI ${env.airQuality.aqi} (${env.airQuality.category}), PM2.5: ${env.airQuality.pm2_5} µg/m³, PM10: ${env.airQuality.pm10} µg/m³
-- Weather: ${env.weather.temperature}°C, ${env.weather.humidity}% humidity, Wind: ${env.weather.windSpeed} km/h, ${env.weather.conditionDescription}
-- Optimal outdoor window: ${env.windows.bestOutdoorWindow.label}
-- Peak pollution window: ${env.windows.peakPollutionWindow.label}
-- User Profile: ${profile.lifestyle}, commute via ${profile.commuteMethod}, household: ${profile.householdMembers.children} children, ${profile.householdMembers.elderly} elderly, ${profile.householdMembers.sensitive} sensitive members.
+- Location: ${locName}${locCountry ? `, ${locCountry}` : ''}
+- Air Quality: AQI ${aqiVal} (${aqiCat}), PM2.5: ${pm25Val} µg/m³, PM10: ${pm10Val} µg/m³
+- Weather: ${tempVal}°C, ${humidityVal}% humidity, Wind: ${windVal} km/h, ${condDesc}
+- Optimal outdoor window: ${bestLabel}
+- Peak pollution window: ${peakLabel}
+- User Profile: ${profile?.lifestyle || 'Student'}, commute via ${profile?.commuteMethod || 'Public transport'}, household: ${profile?.householdMembers?.children ?? 0} children, ${profile?.householdMembers?.elderly ?? 0} elderly, ${profile?.householdMembers?.sensitive ?? 0} sensitive members.
 
 USER MESSAGE: "${message}"
 
@@ -192,15 +256,29 @@ ${isMedicalQuery ? 'IMPORTANT: The user message mentions medical/health symptoms
 
 Provide a concise, direct, compassionate answer in 2-4 short paragraphs. Address WHAT, WHY, and WHAT TO DO NEXT. Distinguish live measurements from recommendations.`;
 
-  if (genAI && API_KEY) {
+  const ai = getGeminiClient();
+  if (ai) {
     try {
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        systemInstruction: SYSTEM_PROMPT,
+      const safeHistory = Array.isArray(history) ? history : [];
+      const recentHistory = safeHistory
+        .slice(-6)
+        .map((m) => `${m?.sender === 'user' ? 'User' : 'Assistant'}: ${String(m?.content || '').slice(0, 500)}`)
+        .join('\n');
+      const fullPrompt = recentHistory
+        ? `${contextPrompt}\n\nRECENT CONVERSATION:\n${recentHistory}`
+        : contextPrompt;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: fullPrompt,
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+        },
       });
 
-      const result = await model.generateContent(contextPrompt);
-      return result.response.text();
+      if (response.text) {
+        return response.text;
+      }
     } catch (error) {
       console.warn('Gemini chat failed, using local rule-based assistant:', error instanceof Error ? error.message : error);
     }
@@ -222,7 +300,7 @@ export async function getCleanerOptionComparison(
 Option A: "${optionA}"
 Option B: "${optionB}"
 
-Context: City: ${env.location.name}, AQI: ${env.airQuality.aqi} (${env.airQuality.category}), User: ${profile.lifestyle}.
+Context: City: ${env?.location?.name || 'your city'}, AQI: ${env?.airQuality?.aqi ?? 100} (${env?.airQuality?.category || 'Moderate'}), User: ${profile?.lifestyle || 'Student'}.
 
 Return ONLY a JSON object:
 {
@@ -251,15 +329,19 @@ Return ONLY a JSON object:
   "assumptions": "Standard 10-15km urban trip based on ICCT transport emission benchmarks"
 }`;
 
-  if (genAI && API_KEY) {
+  const ai = getGeminiClient();
+  if (ai) {
     try {
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        systemInstruction: SYSTEM_PROMPT,
+      const response = await ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: prompt,
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+        },
       });
 
-      const result = await model.generateContent(prompt);
-      const text = cleanJsonResponse(result.response.text());
+      const text = cleanJsonResponse(response.text ?? '');
       return JSON.parse(text);
     } catch (err) {
       console.warn('Gemini comparator failed, using rule fallback:', err instanceof Error ? err.message : err);
@@ -288,13 +370,25 @@ function cleanJsonResponse(raw: string): string {
  * Guarantees zero downtime, instant testing, and adherence to all requirements
  */
 function generateRuleBasedDailyPlan(profile: UserProfile, env: EnvironmentalContext): AIDailyPlan {
-  const isSevere = env.airQuality.category === 'Severe' || env.airQuality.category === 'Very Poor';
-  const bestWin = env.windows.bestOutdoorWindow.label;
-  const peakWin = env.windows.peakPollutionWindow.label;
+  const locName = env?.location?.name || 'your city';
+  const aqiCat = env?.airQuality?.category || 'Moderate';
+  const aqiVal = env?.airQuality?.aqi ?? 100;
+  const pm25Val = env?.airQuality?.pm2_5 ?? 45;
+  const domPollutant = env?.airQuality?.dominantPollutant || 'PM2.5';
+  const windVal = env?.weather?.windSpeed ?? 8;
+  const isSevere = aqiCat === 'Severe' || aqiCat === 'Very Poor';
+  const bestWin = env?.windows?.bestOutdoorWindow?.label || '2:00 PM – 5:00 PM';
+  const bestDesc = env?.windows?.bestOutdoorWindow?.description || 'Lowest daytime particulate concentration';
+  const peakWin = env?.windows?.peakPollutionWindow?.label || '6:00 AM – 9:00 AM';
+  const commuteMethod = profile?.commuteMethod || 'Public transport';
+  const outdoorActivity = profile?.outdoorActivity || 'Walking';
+  const childrenCount = profile?.householdMembers?.children ?? 0;
+  const elderlyCount = profile?.householdMembers?.elderly ?? 0;
+  const sensitiveCount = profile?.householdMembers?.sensitive ?? 0;
 
   return {
-    summary: `Air quality in ${env.location.name} is currently ${env.airQuality.category} (AQI ${env.airQuality.aqi}, PM2.5 ${env.airQuality.pm2_5} µg/m³). Prioritize indoor filtration during peak morning inversion and shift travel or exercise to ${bestWin}.`,
-    air_quality_explanation: `Elevated particulate concentrations (${env.airQuality.dominantPollutant}) are driven by stagnant low-level winds (${env.weather.windSpeed} km/h) and urban thermal inversion. Ground-level emissions remain trapped close to street level, especially between ${peakWin}.`,
+    summary: `Air quality in ${locName} is currently ${aqiCat} (AQI ${aqiVal}, PM2.5 ${pm25Val} µg/m³). Prioritize indoor filtration during peak morning inversion and shift travel or exercise to ${bestWin}.`,
+    air_quality_explanation: `Elevated particulate concentrations (${domPollutant}) are driven by stagnant low-level winds (${windVal} km/h) and urban thermal inversion. Ground-level emissions remain trapped close to street level, especially between ${peakWin}.`,
     actions: [
       {
         time: 'Morning',
@@ -307,7 +401,7 @@ function generateRuleBasedDailyPlan(profile: UserProfile, env: EnvironmentalCont
       },
       {
         time: 'Commute',
-        action: profile.commuteMethod === 'Car' ? 'Opt for metro/bus transit or organize a 3+ carpool' : (profile.commuteMethod === 'Two-wheeler' ? 'Wear a certified N95 particulate respirator during transit' : 'Maintain safe buffer from congested arterial bottlenecks'),
+        action: commuteMethod === 'Car' ? 'Opt for metro/bus transit or organize a 3+ carpool' : (commuteMethod === 'Two-wheeler' ? 'Wear a certified N95 particulate respirator during transit' : 'Maintain safe buffer from congested arterial bottlenecks'),
         reason: 'Single-occupancy vehicles generate ~142g CO2/km and concentrate roadside nitrogen dioxide.',
         impact: 'Reduces per-passenger emissions by up to 75% compared to solo driving.',
         difficulty: 'Moderate',
@@ -325,8 +419,8 @@ function generateRuleBasedDailyPlan(profile: UserProfile, env: EnvironmentalCont
       },
       {
         time: 'Outdoor activity',
-        action: profile.outdoorActivity !== 'None' ? `Shift physical workouts to the safer window: ${bestWin}` : 'Schedule essential outdoor chores between 2:00 PM and 5:00 PM',
-        reason: `Afternoon solar heating deepens the atmospheric mixing layer, yielding lowest daily PM2.5 (${env.windows.bestOutdoorWindow.description}).`,
+        action: outdoorActivity !== 'None' ? `Shift physical workouts to the safer window: ${bestWin}` : 'Schedule essential outdoor chores between 2:00 PM and 5:00 PM',
+        reason: `Afternoon solar heating deepens the atmospheric mixing layer, yielding lowest daily PM2.5 (${bestDesc}).`,
         impact: 'Deep lung ventilation during intense cardio takes in 4x to 6x less PM2.5 when timed properly.',
         difficulty: 'Moderate',
         estimatedBenefit: 'Enables safe cardiovascular exercise without triggering bronchial irritation.',
@@ -361,8 +455,8 @@ function generateRuleBasedDailyPlan(profile: UserProfile, env: EnvironmentalCont
       'Two-wheeler riders and pedestrians should wear a well-fitted N95/FFP2 mask during peak congestion.',
     ],
     family_guidance: [
-      profile.householdMembers.children > 0 ? 'Children breathe faster per kg of body weight; replace outdoor playground activities with indoor games during morning hours.' : 'Keep living areas well filtered.',
-      profile.householdMembers.elderly > 0 || profile.householdMembers.sensitive > 0 ? 'Seniors and individuals with asthma/allergies should strictly limit vigorous outdoor walking to afternoons only.' : 'Stay adequately hydrated to support natural mucosal barrier defense.',
+      childrenCount > 0 ? 'Children breathe faster per kg of body weight; replace outdoor playground activities with indoor games during morning hours.' : 'Keep living areas well filtered.',
+      elderlyCount > 0 || sensitiveCount > 0 ? 'Seniors and individuals with asthma/allergies should strictly limit vigorous outdoor walking to afternoons only.' : 'Stay adequately hydrated to support natural mucosal barrier defense.',
     ],
     sustainability_tip: 'Consolidate multiple short vehicle errands into a single trip, or switch one weekly commute to public transit to save an estimated 1.5 kg CO2.',
     safety_note: 'This assistant provides general environmental guidance and is not medical advice. Individuals with pre-existing cardiopulmonary conditions should strictly adhere to physician advice and local health alerts.',
@@ -377,18 +471,25 @@ function generateRuleBasedChatResponse(
   env: EnvironmentalContext
 ): string {
   const lower = message.toLowerCase();
+  const locName = env?.location?.name || 'your city';
+  const aqiCat = env?.airQuality?.category || 'Moderate';
+  const aqiVal = env?.airQuality?.aqi ?? 100;
+  const pm25Val = env?.airQuality?.pm2_5 ?? 45;
+  const tempVal = env?.weather?.temperature ?? 24;
+  const bestWin = env?.windows?.bestOutdoorWindow?.label || '2:00 PM – 5:00 PM';
+  const peakWin = env?.windows?.peakPollutionWindow?.label || '6:00 AM – 9:00 AM';
 
   if (lower.includes('run') || lower.includes('jog') || lower.includes('exercise') || lower.includes('walk')) {
-    return `### Outdoor Activity Guidance for ${env.location.name}
+    return `### Outdoor Activity Guidance for ${locName}
 
-Current air quality is **${env.airQuality.category}** with a PM2.5 level of **${env.airQuality.pm2_5} µg/m³** (AQI ${env.airQuality.aqi}).
+Current air quality is **${aqiCat}** with a PM2.5 level of **${pm25Val} µg/m³** (AQI ${aqiVal}).
 
 **When is it safest?**
-Your best outdoor window today is **${env.windows.bestOutdoorWindow.label}**. During this time, solar heating helps disperse stagnant surface particles, making it substantially safer for moderate exercise than morning hours.
+Your best outdoor window today is **${bestWin}**. During this time, solar heating helps disperse stagnant surface particles, making it substantially safer for moderate exercise than morning hours.
 
 **What you should do:**
-- Avoid running during peak morning inversion (${env.windows.peakPollutionWindow.label}) when vehicle exhaust is trapped near breathing height.
-- If air quality remains in the ${env.airQuality.category} category, consider an indoor workout, yoga, or treadmill session instead of strenuous outdoor cardio.
+- Avoid running during peak morning inversion (${peakWin}) when vehicle exhaust is trapped near breathing height.
+- If air quality remains in the ${aqiCat} category, consider an indoor workout, yoga, or treadmill session instead of strenuous outdoor cardio.
 - Wear an N95 mask if you must be outdoors during congested rush hours.
 
 *Notice: This is general environmental guidance, not medical advice. Those with asthma or heart conditions should consult their physician.*`;
@@ -397,11 +498,11 @@ Your best outdoor window today is **${env.windows.bestOutdoorWindow.label}**. Du
   if (lower.includes('window') || lower.includes('ventilate') || lower.includes('indoor') || lower.includes('air purifier')) {
     return `### Indoor Air & Ventilation Advice
 
-In **${env.location.name}**, current outdoor PM2.5 is **${env.airQuality.pm2_5} µg/m³** (${env.airQuality.category}).
+In **${locName}**, current outdoor PM2.5 is **${pm25Val} µg/m³** (${aqiCat}).
 
 **Window Guidance:**
-- **Keep windows closed** during early morning (${env.windows.peakPollutionWindow.label}) and late night when thermal inversion traps heavy pollutants.
-- If you need fresh air exchange, crack windows open briefly during **${env.windows.bestOutdoorWindow.label}** when outdoor particulate levels are lowest.
+- **Keep windows closed** during early morning (${peakWin}) and late night when thermal inversion traps heavy pollutants.
+- If you need fresh air exchange, crack windows open briefly during **${bestWin}** when outdoor particulate levels are lowest.
 
 **Indoor Air Quality Hacks:**
 1. Run your HEPA air purifier continuously on auto or medium mode in living and sleeping quarters.
@@ -412,7 +513,7 @@ In **${env.location.name}**, current outdoor PM2.5 is **${env.airQuality.pm2_5} 
   if (lower.includes('car') || lower.includes('commute') || lower.includes('college') || lower.includes('office') || lower.includes('transit')) {
     return `### Low-Emission Commute Alternatives
 
-For your routine in **${env.location.name}**:
+For your routine in **${locName}**:
 
 **The Cleaner Option:**
 Taking the **metro or public bus** saves approximately **1.2 to 1.5 kg of CO2** per 12 km trip compared to driving alone in a petrol car. It also removes one vehicle from gridlocked street canyons where roadside particulate spikes highest.
@@ -423,13 +524,13 @@ Taking the **metro or public bus** saves approximately **1.2 to 1.5 kg of CO2** 
 - Consider combining errands or coordinating a carpool with nearby colleagues or classmates.`;
   }
 
-  return `### AirWise Guidance for ${env.location.name}
+  return `### AirWise Guidance for ${locName}
 
-Current conditions report an AQI of **${env.airQuality.aqi} (${env.airQuality.category})** with PM2.5 at **${env.airQuality.pm2_5} µg/m³** and temperature at **${env.weather.temperature}°C**.
+Current conditions report an AQI of **${aqiVal} (${aqiCat})** with PM2.5 at **${pm25Val} µg/m³** and temperature at **${tempVal}°C**.
 
 **Key Recommendations for Today:**
-1. **Best Outdoor Window:** Plan non-essential outdoor movements around **${env.windows.bestOutdoorWindow.label}**.
-2. **Avoid Morning Inversion:** Peak pollution is highest around **${env.windows.peakPollutionWindow.label}**.
+1. **Best Outdoor Window:** Plan non-essential outdoor movements around **${bestWin}**.
+2. **Avoid Morning Inversion:** Peak pollution is highest around **${peakWin}**.
 3. **Clean Choices:** Opt for public transit or carpooling to reduce street-level emissions, and keep indoor living areas protected with HEPA filtration.
 
 Feel free to ask specific questions about your commute, family safety, or running timing!`;
@@ -442,6 +543,8 @@ function generateRuleBasedComparison(
   env: EnvironmentalContext
 ): ComparatorResult {
   const isTransit = optionB.toLowerCase().includes('public') || optionB.toLowerCase().includes('metro') || optionB.toLowerCase().includes('walk') || optionB.toLowerCase().includes('cycl');
+  const locName = env?.location?.name || 'your city';
+  const aqiCat = env?.airQuality?.category || 'Moderate';
 
   return {
     optionA: {
@@ -464,7 +567,7 @@ function generateRuleBasedComparison(
       environmentalBenefit: 'Significant. Cuts per-capita emissions by 75-85% and relieves urban road gridlock.',
       practicality: 'Highly practical in urban centers with metro or dedicated bus rapid transit corridors.'
     },
-    recommendation: `Choose ${optionB} today. In ${env.location.name}'s current ${env.airQuality.category} conditions, reducing individual tailpipe emissions directly supports community-wide respiratory relief.`,
+    recommendation: `Choose ${optionB} today. In ${locName}'s current ${aqiCat} conditions, reducing individual tailpipe emissions directly supports community-wide respiratory relief.`,
     whyItMatters: 'Every car trip replaced by electrified transit or active mobility avoids approximately 1.5 kg of CO2 and prevents immediate ground-level particulate accumulation in residential zones.',
     assumptions: 'Calculations modeled for a standard 12 km urban round-trip using CPCB & ICCT passenger transport emission benchmarks.'
   };

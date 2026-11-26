@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   MapPin,
   Briefcase,
   Users,
   Car,
-  Activity,
   Home,
   Check,
   Search,
@@ -86,6 +85,23 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [activeTab, setActiveTab] = useState<'location' | 'lifestyle' | 'family' | 'commute' | 'indoor'>('location');
 
+  useEffect(() => {
+    if (isOpen) {
+      setFormData(profile);
+      setSearchResults([]);
+      setCitySearchQuery('');
+    }
+  }, [isOpen, profile]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleCitySearch = async (e: React.FormEvent) => {
@@ -124,9 +140,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     <div
       role="dialog"
       aria-modal="true"
+      aria-labelledby="profile-modal-title"
+      onClick={onClose}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
     >
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center space-x-2.5">
@@ -134,7 +155,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               <MapPin className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="font-bold text-lg text-slate-900 dark:text-white">
+              <h2 id="profile-modal-title" className="font-bold text-lg text-slate-900 dark:text-white">
                 Location & Lifestyle Setup
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -194,6 +215,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     return (
                       <button
                         key={city.name}
+                        type="button"
+                        aria-pressed={isSelected}
                         onClick={() => selectCity(city)}
                         className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition-all flex items-center justify-between ${
                           isSelected
@@ -211,13 +234,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
               {/* Search city */}
               <div className="pt-2">
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                <label
+                  htmlFor="city-global-search"
+                  className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5"
+                >
                   Or Search Any City Globally
                 </label>
                 <form onSubmit={handleCitySearch} className="flex gap-2">
                   <div className="relative flex-1">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" aria-hidden="true" />
                     <input
+                      id="city-global-search"
                       type="text"
                       value={citySearchQuery}
                       onChange={(e) => setCitySearchQuery(e.target.value)}
@@ -271,6 +298,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     return (
                       <button
                         key={lifestyle}
+                        type="button"
+                        aria-pressed={isSelected}
                         onClick={() => setFormData((prev) => ({ ...prev, lifestyle }))}
                         className={`p-3 rounded-2xl border text-left text-xs font-semibold transition-all flex items-center justify-between ${
                           isSelected
@@ -317,6 +346,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     <div className="flex items-center justify-center space-x-2">
                       <button
                         type="button"
+                        aria-label={`Decrease ${item.label} count`}
                         onClick={() =>
                           setFormData((prev) => ({
                             ...prev,
@@ -335,6 +365,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       </span>
                       <button
                         type="button"
+                        aria-label={`Increase ${item.label} count`}
                         onClick={() =>
                           setFormData((prev) => ({
                             ...prev,
@@ -368,6 +399,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     return (
                       <button
                         key={c}
+                        type="button"
+                        aria-pressed={isSelected}
                         onClick={() => setFormData((prev) => ({ ...prev, commuteMethod: c }))}
                         className={`p-2.5 rounded-xl border text-left text-xs font-medium transition-all ${
                           isSelected
@@ -392,6 +425,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     return (
                       <button
                         key={act}
+                        type="button"
+                        aria-pressed={isSelected}
                         onClick={() => setFormData((prev) => ({ ...prev, outdoorActivity: act }))}
                         className={`p-2.5 rounded-xl border text-left text-xs font-medium transition-all ${
                           isSelected
@@ -420,6 +455,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   return (
                     <button
                       key={opt}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={isChecked}
                       onClick={() => toggleIndoorOption(opt)}
                       className={`p-3 rounded-2xl border text-left text-xs font-semibold transition-all flex items-center justify-between ${
                         isChecked

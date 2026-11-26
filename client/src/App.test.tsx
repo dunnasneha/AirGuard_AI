@@ -1,10 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import App from './App';
 
 // Mock fetch API globally
-globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+const mockFetch = vi.fn().mockImplementation((url: string) => {
   if (url.includes('/environmental-data')) {
     return Promise.resolve({
       ok: true,
@@ -46,20 +46,42 @@ globalThis.fetch = vi.fn().mockImplementation((url: string) => {
   });
 });
 
+globalThis.fetch = mockFetch as unknown as typeof fetch;
+
 describe('AirWise AI Frontend Application Tests', () => {
-  it('renders landing page with headline and call to actions', async () => {
+  beforeEach(() => {
+    mockFetch.mockClear();
+    localStorage.clear();
+  });
+
+  it('renders landing page with headline, call to actions, and live snapshot', async () => {
     render(<App />);
 
-    // Brand and Hero checks
     expect(await screen.findByText(/Know Your Air\./i)).toBeInTheDocument();
     expect(await screen.findByText(/Protect Your Day\./i)).toBeInTheDocument();
     expect(screen.getByText(/Check My Air/i)).toBeInTheDocument();
     expect(screen.getByText(/Explore How It Works/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Live Conditions in Hyderabad/i)).toBeInTheDocument();
   });
 
-  it('renders navigation bar with AirWise AI brand', () => {
+  it('renders navigation bar with AirWise AI brand', async () => {
     render(<App />);
+    expect(await screen.findByText(/Live Conditions in Hyderabad/i)).toBeInTheDocument();
     expect(screen.getAllByText(/AirWise AI/i)[0]).toBeInTheDocument();
     expect(screen.getAllByText(/Breathe smarter\. Live cleaner\./i)[0]).toBeInTheDocument();
+  });
+
+  it('opens and closes the profile setup modal via keyboard Escape', async () => {
+    render(<App />);
+    await screen.findByText(/Live Conditions in Hyderabad/i);
+
+    const profileTrigger = screen.getByRole('button', { name: /Hyderabad/i });
+    fireEvent.click(profileTrigger);
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText(/Location & Lifestyle Setup/i)).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

@@ -143,7 +143,7 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
               </span>
               <div className="flex items-center space-x-2">
                 <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                  Model: {plan.generatedBy === 'gemini' ? 'Google Gemini 1.5' : 'Adaptive Rule Engine'}
+                  Model: {plan.generatedBy === 'gemini' ? 'Google Gemini' : 'Adaptive Rule Engine'}
                 </span>
                 <span className="text-[10px] text-slate-400">
                   {new Date(plan.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -166,7 +166,7 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
               Schedule & Actions (What, Why, Impact, What Next)
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {plan.actions.map((act: PlanAction) => {
+              {(plan.actions || []).map((act: PlanAction) => {
                 const Icon = getTimeIcon(act.time);
                 return (
                   <div
@@ -243,7 +243,7 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
                 Indoor Air Quality
               </h4>
               <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
-                {plan.indoor_guidance.map((item, idx) => (
+                {(plan.indoor_guidance || []).map((item, idx) => (
                   <li key={idx} className="flex items-start space-x-2">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
                     <span>{item}</span>
@@ -257,7 +257,7 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
                 Low-Emission Commute
               </h4>
               <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
-                {plan.commute_guidance.map((item, idx) => (
+                {(plan.commute_guidance || []).map((item, idx) => (
                   <li key={idx} className="flex items-start space-x-2">
                     <CheckCircle2 className="h-3.5 w-3.5 text-teal-500 shrink-0 mt-0.5" />
                     <span>{item}</span>
@@ -271,7 +271,7 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
                 Family & Sensitive Members
               </h4>
               <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
-                {plan.family_guidance.map((item, idx) => (
+                {(plan.family_guidance || []).map((item, idx) => (
                   <li key={idx} className="flex items-start space-x-2">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
                     <span>{item}</span>

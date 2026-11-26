@@ -2,28 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   TrendingDown,
   CheckCircle2,
-  Car,
-  Footprints,
-  Bike,
-  Briefcase,
-  Layers,
-  Wind,
   Info,
-  Sparkles,
-  Award,
 } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
 import { EnvironmentalContext, ImpactSummary, UserProfile } from '../types';
 import { calculateImpactSummary } from '../services/api';
-import { loadLoggedActions, saveLoggedActions } from '../utils/storage';
+import { loadLoggedActions, saveLoggedActions, loadStreakDays } from '../utils/storage';
 
 interface ImpactPageProps {
   context: EnvironmentalContext;
@@ -81,7 +64,7 @@ export const ImpactPage: React.FC<ImpactPageProps> = ({ context, profile }) => {
   const recalcImpact = async (actions: string[]) => {
     setLoading(true);
     try {
-      const data = await calculateImpactSummary(actions, 4);
+      const data = await calculateImpactSummary(actions, loadStreakDays());
       setSummary(data);
     } catch (err) {
       console.warn('Failed to calculate impact:', err);
@@ -100,12 +83,6 @@ export const ImpactPage: React.FC<ImpactPageProps> = ({ context, profile }) => {
     recalcImpact(updated);
   };
 
-  const chartData = [
-    { name: 'CO₂ Avoided', value: summary?.totalCo2SavedKg || 0, unit: 'kg' },
-    { name: 'Trips Avoided', value: summary?.totalTripsAvoided || 0, unit: 'trips' },
-    { name: 'Exposure Cut', value: summary?.estimatedExposureCutPercent || 0, unit: '%' },
-  ];
-
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -123,7 +100,7 @@ export const ImpactPage: React.FC<ImpactPageProps> = ({ context, profile }) => {
 
       {/* Impact Metric Cards */}
       {summary && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 sm:grid-cols-3 gap-4 transition-opacity ${loading ? 'opacity-70' : 'opacity-100'}`}>
           <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-lg space-y-1">
             <span className="text-xs font-semibold uppercase tracking-wider opacity-85">
               Estimated CO₂ Prevented
@@ -177,6 +154,8 @@ export const ImpactPage: React.FC<ImpactPageProps> = ({ context, profile }) => {
             return (
               <button
                 key={item.id}
+                type="button"
+                aria-pressed={isSelected}
                 onClick={() => toggleAction(item.id)}
                 className={`p-4 rounded-2xl border text-left transition-all flex items-start justify-between ${
                   isSelected

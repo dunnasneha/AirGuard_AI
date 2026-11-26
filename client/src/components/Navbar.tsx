@@ -43,9 +43,10 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'timeline', label: 'Air Quality', icon: BarChart3 },
     { id: 'ai-plan', label: 'AI Plan', icon: Sparkles, badge: 'GenAI' },
+    { id: 'comparator', label: 'Choices', icon: TrendingDown },
     { id: 'indoor', label: 'Indoor Air', icon: Wind },
     { id: 'family', label: 'Family', icon: Users },
-    { id: 'impact', label: 'Impact', icon: TrendingDown },
+    { id: 'impact', label: 'Impact', icon: Award },
     { id: 'assistant', label: 'Assistant', icon: MessageSquare },
     { id: 'progress', label: 'Progress', icon: Award },
   ];

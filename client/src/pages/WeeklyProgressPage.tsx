@@ -2,18 +2,12 @@ import React, { useState, useEffect } from 'react';
 import {
   Award,
   Flame,
-  CheckCircle2,
   TrendingUp,
   Users,
-  Sparkles,
-  ArrowRight,
-  ShieldCheck,
-  Calendar,
-  Zap,
 } from 'lucide-react';
 import { EnvironmentalContext, ImpactSummary, UserProfile } from '../types';
 import { calculateImpactSummary, fetchCommunityStats } from '../services/api';
-import { loadLoggedActions, loadIndoorChecklist } from '../utils/storage';
+import { loadLoggedActions, loadIndoorChecklist, loadStreakDays } from '../utils/storage';
 
 interface WeeklyProgressPageProps {
   context: EnvironmentalContext;
@@ -31,8 +25,9 @@ export const WeeklyProgressPage: React.FC<WeeklyProgressPageProps> = ({
 
   useEffect(() => {
     const actions = loadLoggedActions();
-    calculateImpactSummary(actions, 4).then(setImpact);
-    fetchCommunityStats().then(setCommunity);
+    const streak = loadStreakDays();
+    calculateImpactSummary(actions, streak).then(setImpact).catch(() => {});
+    fetchCommunityStats().then(setCommunity).catch(() => {});
   }, []);
 
   const checklist = loadIndoorChecklist();
@@ -60,13 +55,13 @@ export const WeeklyProgressPage: React.FC<WeeklyProgressPageProps> = ({
             {/* Circular / Badge score */}
             <div className="w-28 h-28 rounded-3xl bg-white/20 backdrop-blur-md flex flex-col items-center justify-center border border-white/30 shrink-0">
               <span className="text-[10px] uppercase font-bold tracking-wider opacity-90">Your Score</span>
-              <span className="text-4xl font-black">{impact?.airWiseScore || 78}</span>
+              <span className="text-4xl font-black">{impact?.airWiseScore ?? 50}</span>
               <span className="text-[10px] opacity-80">out of 100</span>
             </div>
             <div>
               <div className="inline-flex items-center space-x-1 px-3 py-1 rounded-full bg-white/20 text-xs font-bold mb-1">
                 <Flame className="h-3.5 w-3.5 text-amber-300" />
-                <span>{impact?.streakDays || 4}-Day Habit Streak</span>
+                <span>{impact?.streakDays ?? loadStreakDays()}-Day Habit Streak</span>
               </div>
               <h2 className="text-xl font-bold">Excellent AirWise Citizen</h2>
               <p className="text-xs text-emerald-100 mt-1">
@@ -79,11 +74,11 @@ export const WeeklyProgressPage: React.FC<WeeklyProgressPageProps> = ({
           <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-center">
               <span className="text-[10px] uppercase font-semibold text-emerald-100 block">Cleaner Choices</span>
-              <span className="text-2xl font-bold">{impact?.actionsCompleted || 2}</span>
+              <span className="text-2xl font-bold">{impact?.actionsCompleted ?? 0}</span>
             </div>
             <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-center">
               <span className="text-[10px] uppercase font-semibold text-emerald-100 block">Avoided Trips</span>
-              <span className="text-2xl font-bold">{impact?.totalTripsAvoided || 3}</span>
+              <span className="text-2xl font-bold">{impact?.totalTripsAvoided ?? 0}</span>
             </div>
             <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-center col-span-2 sm:col-span-1">
               <span className="text-[10px] uppercase font-semibold text-emerald-100 block">Indoor Checklist</span>

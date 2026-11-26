@@ -27,7 +27,8 @@ export async function searchCities(query: string): Promise<LocationInfo[]> {
   }
 
   try {
-    const response = await axios.get('https://geocoding-api.open-meteo.com/v1/search', {
+    const geocodingUrl = process.env.GEOCODING_API_URL || 'https://geocoding-api.open-meteo.com/v1/search';
+    const response = await axios.get(geocodingUrl, {
       params: {
         name: trimmed,
         count: 6,

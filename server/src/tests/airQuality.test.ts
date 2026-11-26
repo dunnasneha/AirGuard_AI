@@ -47,4 +47,15 @@ describe('AQI Calculator & Classification Unit Tests', () => {
     expect(result.aqi).toBeGreaterThanOrEqual(401);
     expect(result.healthAdvice).toContain('Severe pollution alert');
   });
+
+  it('handles decimal concentrations between integer breakpoints without falling through', () => {
+    const midGood = calculateCompositeAQI(30.4, 50.2, 20);
+    expect(midGood.category).toBe('Good');
+    expect(midGood.aqi).toBeGreaterThanOrEqual(50);
+    expect(midGood.aqi).toBeLessThanOrEqual(55);
+
+    const highPoor = calculateCompositeAQI(120.5, 100.5, 25);
+    expect(highPoor.category).toBe('Very Poor');
+    expect(highPoor.aqi).toBeGreaterThanOrEqual(301);
+  });
 });

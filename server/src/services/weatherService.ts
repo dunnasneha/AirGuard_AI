@@ -1,11 +1,19 @@
 import axios from 'axios';
 import { LocationInfo, WeatherData } from '../types/index.js';
 
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const weatherCache = new Map<string, { expiresAt: number; data: WeatherData }>();
+
 export async function fetchWeatherData(location: LocationInfo): Promise<WeatherData> {
   const { latitude, longitude } = location;
+  const cacheKey = `${latitude.toFixed(2)},${longitude.toFixed(2)}`;
+  const cached = weatherCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
 
   try {
-    const url = 'https://api.open-meteo.com/v1/forecast';
+    const url = process.env.WEATHER_API_URL || 'https://api.open-meteo.com/v1/forecast';
     const response = await axios.get(url, {
       params: {
         latitude,
@@ -19,13 +27,15 @@ export async function fetchWeatherData(location: LocationInfo): Promise<WeatherD
     const data = response.data;
     if (data && data.current) {
       const code = data.current.weather_code ?? 0;
-      return {
+      const result: WeatherData = {
         temperature: Math.round((data.current.temperature_2m ?? 24) * 10) / 10,
         humidity: Math.round(data.current.relative_humidity_2m ?? 60),
         windSpeed: Math.round((data.current.wind_speed_10m ?? 8) * 10) / 10,
         weatherCode: code,
         conditionDescription: interpretWeatherCode(code),
       };
+      weatherCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, data: result });
+      return result;
     }
   } catch (error) {
     console.warn(`Weather API call failed for ${location.name}, using standard estimate:`, error instanceof Error ? error.message : error);

@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
 import {
   Wind,
-  ShieldCheck,
   CheckSquare,
   Square,
-  AlertTriangle,
   Flame,
   UtensilsCrossed,
   Sparkles,
@@ -176,6 +174,9 @@ export const IndoorAirPage: React.FC<IndoorAirPageProps> = ({
             return (
               <button
                 key={item.key}
+                type="button"
+                role="checkbox"
+                aria-checked={isChecked}
                 onClick={() => toggleCheck(item.key)}
                 className={`w-full p-4 rounded-2xl border text-left transition-all flex items-start space-x-3.5 ${
                   isChecked

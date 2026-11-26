@@ -21,27 +21,27 @@ interface Breakpoint {
 
 const PM25_BREAKPOINTS: Breakpoint[] = [
   { cLow: 0, cHigh: 30, iLow: 0, iHigh: 50, category: 'Good' },
-  { cLow: 31, cHigh: 60, iLow: 51, iHigh: 100, category: 'Good' },
-  { cLow: 61, cHigh: 90, iLow: 101, iHigh: 200, category: 'Moderate' },
-  { cLow: 91, cHigh: 120, iLow: 201, iHigh: 300, category: 'Poor' },
-  { cLow: 121, cHigh: 250, iLow: 301, iHigh: 400, category: 'Very Poor' },
-  { cLow: 251, cHigh: 500, iLow: 401, iHigh: 500, category: 'Severe' },
+  { cLow: 30, cHigh: 60, iLow: 51, iHigh: 100, category: 'Good' },
+  { cLow: 60, cHigh: 90, iLow: 101, iHigh: 200, category: 'Moderate' },
+  { cLow: 90, cHigh: 120, iLow: 201, iHigh: 300, category: 'Poor' },
+  { cLow: 120, cHigh: 250, iLow: 301, iHigh: 400, category: 'Very Poor' },
+  { cLow: 250, cHigh: 500, iLow: 401, iHigh: 500, category: 'Severe' },
 ];
 
 const PM10_BREAKPOINTS: Breakpoint[] = [
   { cLow: 0, cHigh: 50, iLow: 0, iHigh: 50, category: 'Good' },
-  { cLow: 51, cHigh: 100, iLow: 51, iHigh: 100, category: 'Good' },
-  { cLow: 101, cHigh: 250, iLow: 101, iHigh: 200, category: 'Moderate' },
-  { cLow: 251, cHigh: 350, iLow: 201, iHigh: 300, category: 'Poor' },
-  { cLow: 351, cHigh: 430, iLow: 301, iHigh: 400, category: 'Very Poor' },
-  { cLow: 431, cHigh: 600, iLow: 401, iHigh: 500, category: 'Severe' },
+  { cLow: 50, cHigh: 100, iLow: 51, iHigh: 100, category: 'Good' },
+  { cLow: 100, cHigh: 250, iLow: 101, iHigh: 200, category: 'Moderate' },
+  { cLow: 250, cHigh: 350, iLow: 201, iHigh: 300, category: 'Poor' },
+  { cLow: 350, cHigh: 430, iLow: 301, iHigh: 400, category: 'Very Poor' },
+  { cLow: 430, cHigh: 600, iLow: 401, iHigh: 500, category: 'Severe' },
 ];
 
 function calculateSubIndex(conc: number, breakpoints: Breakpoint[]): { aqi: number; category: AQICategory } {
-  if (conc <= 0) return { aqi: 15, category: 'Good' };
+  if (!Number.isFinite(conc) || conc <= 0) return { aqi: 15, category: 'Good' };
 
   for (const bp of breakpoints) {
-    if (conc >= bp.cLow && conc <= bp.cHigh) {
+    if (conc <= bp.cHigh) {
       const aqi = Math.round(
         ((bp.iHigh - bp.iLow) / (bp.cHigh - bp.cLow)) * (conc - bp.cLow) + bp.iLow
       );
@@ -49,9 +49,9 @@ function calculateSubIndex(conc: number, breakpoints: Breakpoint[]): { aqi: numb
     }
   }
 
-  // Extreme severe condition
+  // Extreme severe condition (> max breakpoint)
   const last = breakpoints[breakpoints.length - 1];
-  return { aqi: Math.min(500, Math.round(conc)), category: last.category };
+  return { aqi: 500, category: last.category };
 }
 
 export function getAQICategory(aqi: number): AQICategory {

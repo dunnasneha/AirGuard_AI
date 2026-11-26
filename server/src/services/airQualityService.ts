@@ -5,7 +5,7 @@ import {
   LocationInfo,
   PollutionWindows,
 } from '../types/index.js';
-import { calculateCompositeAQI, getAQICategory } from '../utils/aqiCalculator.js';
+import { calculateCompositeAQI } from '../utils/aqiCalculator.js';
 
 export interface AirQualityFetchResult {
   current: CurrentPollutants;
@@ -15,13 +15,21 @@ export interface AirQualityFetchResult {
   demoNotice?: string;
 }
 
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const aqCache = new Map<string, { expiresAt: number; data: AirQualityFetchResult }>();
+
 export async function fetchAirQualityData(
   location: LocationInfo
 ): Promise<AirQualityFetchResult> {
   const { latitude, longitude, name } = location;
+  const cacheKey = `${latitude.toFixed(2)},${longitude.toFixed(2)}`;
+  const cached = aqCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
 
   try {
-    const url = 'https://air-quality-api.open-meteo.com/v1/air-quality';
+    const url = process.env.AIR_QUALITY_API_URL || 'https://air-quality-api.open-meteo.com/v1/air-quality';
     const response = await axios.get(url, {
       params: {
         latitude,
@@ -54,23 +62,24 @@ export async function fetchAirQualityData(
 
       const current = calculateCompositeAQI(pm2_5, pm10, ozone, no2, so2, co);
 
-      // Extract hourly data for the next 24 hours starting from current hour
+      // Extract hourly data for the next 24 hours starting from current local hour
       const hourlyList: HourlyDataPoint[] = [];
       const times: string[] = data.hourly?.time || [];
       const pm25List: number[] = data.hourly?.pm2_5 || [];
       const pm10List: number[] = data.hourly?.pm10 || [];
       const ozoneList: number[] = data.hourly?.ozone || [];
 
-      const currentIsoHour = new Date().toISOString().slice(0, 13);
-      let startIndex = times.findIndex((t) => t.startsWith(currentIsoHour));
+      const utcOffsetSeconds = typeof data.utc_offset_seconds === 'number' ? data.utc_offset_seconds : 0;
+      const currentLocalIsoHour = new Date(Date.now() + utcOffsetSeconds * 1000).toISOString().slice(0, 13);
+      let startIndex = times.findIndex((t) => t.startsWith(currentLocalIsoHour));
       if (startIndex === -1) startIndex = 0;
 
       const sliceCount = Math.min(24, times.length - startIndex);
       for (let i = 0; i < sliceCount; i++) {
         const idx = startIndex + i;
         const timeStr = times[idx];
-        const dateObj = new Date(timeStr);
-        const hour = dateObj.getHours();
+        const parsedHour = parseInt(timeStr.slice(11, 13), 10);
+        const hour = Number.isNaN(parsedHour) ? new Date(timeStr).getHours() : parsedHour;
         const p25 = pm25List[idx] ?? pm2_5;
         const p10 = pm10List[idx] ?? pm10;
         const oz = ozoneList[idx] ?? ozone;
@@ -89,12 +98,14 @@ export async function fetchAirQualityData(
       // Compute Better Outdoor Window and Higher Pollution Window
       const windows = computePollutionWindows(hourlyList);
 
-      return {
+      const result: AirQualityFetchResult = {
         current,
         hourly: hourlyList,
         windows,
         isDemo: false,
       };
+      aqCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, data: result });
+      return result;
     }
   } catch (error) {
     console.warn(`Air quality API failed for ${name}, using high-fidelity fallback:`, error instanceof Error ? error.message : error);

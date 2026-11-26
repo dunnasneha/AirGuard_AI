@@ -9,8 +9,13 @@ import {
 } from '../services/geminiService.js';
 import { computeTotalImpact } from '../services/impactService.js';
 import { rateLimiter } from '../middleware/rateLimiter.js';
-import { sanitizeString, validateCoordinates } from '../middleware/validation.js';
-import { EnvironmentalContext, LocationInfo, UserProfile } from '../types/index.js';
+import {
+  sanitizeString,
+  validateAndNormalizeEnvironmentalContext,
+  validateAndNormalizeProfile,
+  validateCoordinates,
+} from '../middleware/validation.js';
+import { EnvironmentalContext, LocationInfo } from '../types/index.js';
 
 const router = Router();
 
@@ -77,13 +82,16 @@ router.get('/environmental-data', validateCoordinates, async (req: Request, res:
 // 4. GenAI Daily Action Plan
 router.post('/ai/daily-plan', rateLimiter, async (req: Request, res: Response) => {
   try {
-    const { profile, environmentalContext } = req.body;
+    const normalizedProfile = validateAndNormalizeProfile(req.body?.profile);
+    const normalizedEnv = validateAndNormalizeEnvironmentalContext(req.body?.environmentalContext);
 
-    if (!profile || !environmentalContext) {
-      return res.status(400).json({ error: 'Profile and environmental context are required.' });
+    if (!normalizedProfile || !normalizedEnv) {
+      return res.status(400).json({
+        error: 'Valid profile and environmentalContext (with location.name and airQuality.aqi) are required.',
+      });
     }
 
-    const plan = await generateDailyActionPlan(profile as UserProfile, environmentalContext as EnvironmentalContext);
+    const plan = await generateDailyActionPlan(normalizedProfile, normalizedEnv);
     res.json(plan);
   } catch (err) {
     console.error('Error generating AI daily plan:', err);
@@ -96,26 +104,32 @@ router.post('/ai/daily-plan', rateLimiter, async (req: Request, res: Response) =
 // 5. GenAI Conversational AirWise Assistant
 router.post('/ai/chat', rateLimiter, async (req: Request, res: Response) => {
   try {
-    const { message, history = [], profile, environmentalContext } = req.body;
+    const { message, history = [] } = req.body || {};
     const cleanMsg = sanitizeString(message);
 
     if (!cleanMsg) {
       return res.status(400).json({ error: 'A message query is required.' });
     }
 
-    if (!environmentalContext || !profile) {
-      return res.status(400).json({ error: 'Profile and environmental context are required for contextual AI.' });
+    const normalizedProfile = validateAndNormalizeProfile(req.body?.profile);
+    const normalizedEnv = validateAndNormalizeEnvironmentalContext(req.body?.environmentalContext);
+
+    if (!normalizedProfile || !normalizedEnv) {
+      return res.status(400).json({
+        error: 'Valid profile and environmentalContext (with location.name and airQuality.aqi) are required for contextual AI.',
+      });
     }
 
-    const reply = await getAirWiseChatResponse(cleanMsg, history, profile, environmentalContext);
+    const safeHistory = Array.isArray(history) ? history.slice(-10) : [];
+    const reply = await getAirWiseChatResponse(cleanMsg, safeHistory, normalizedProfile, normalizedEnv);
 
     res.json({
       reply,
       contextUsed: {
-        location: environmentalContext.location.name,
-        aqi: environmentalContext.airQuality.aqi,
-        category: environmentalContext.airQuality.category,
-        lifestyle: profile.lifestyle,
+        location: normalizedEnv.location.name,
+        aqi: normalizedEnv.airQuality.aqi,
+        category: normalizedEnv.airQuality.category,
+        lifestyle: normalizedProfile.lifestyle,
       },
     });
   } catch (err) {
@@ -129,17 +143,22 @@ router.post('/ai/chat', rateLimiter, async (req: Request, res: Response) => {
 // 6. GenAI Cleaner Option Comparator
 router.post('/ai/comparator', rateLimiter, async (req: Request, res: Response) => {
   try {
-    const { optionA, optionB, profile, environmentalContext } = req.body;
+    const cleanA = sanitizeString(req.body?.optionA, 200);
+    const cleanB = sanitizeString(req.body?.optionB, 200);
+    const normalizedProfile = validateAndNormalizeProfile(req.body?.profile);
+    const normalizedEnv = validateAndNormalizeEnvironmentalContext(req.body?.environmentalContext);
 
-    if (!optionA || !optionB || !profile || !environmentalContext) {
-      return res.status(400).json({ error: 'Both options, profile, and environmental context are required.' });
+    if (!cleanA || !cleanB || !normalizedProfile || !normalizedEnv) {
+      return res.status(400).json({
+        error: 'Valid optionA, optionB, profile, and environmentalContext are required.',
+      });
     }
 
     const comparison = await getCleanerOptionComparison(
-      sanitizeString(optionA),
-      sanitizeString(optionB),
-      profile,
-      environmentalContext
+      cleanA,
+      cleanB,
+      normalizedProfile,
+      normalizedEnv
     );
 
     res.json(comparison);
@@ -152,7 +171,20 @@ router.post('/ai/comparator', rateLimiter, async (req: Request, res: Response) =
 // 7. Impact Calculation Endpoint
 router.post('/impact/calculate', (req: Request, res: Response) => {
   try {
-    const { actions = [], streakDays = 4 } = req.body;
+    const rawActions = req.body?.actions;
+    const rawStreak = req.body?.streakDays;
+
+    if (rawActions !== undefined && !Array.isArray(rawActions)) {
+      return res.status(400).json({ error: 'actions must be an array of action identifiers.' });
+    }
+
+    const actions = Array.isArray(rawActions)
+      ? rawActions.filter((item): item is string => typeof item === 'string').slice(0, 50)
+      : [];
+    const streakDays = typeof rawStreak === 'number' && Number.isFinite(rawStreak)
+      ? Math.max(0, Math.min(365, Math.floor(rawStreak)))
+      : 4;
+
     const summary = computeTotalImpact(actions, streakDays);
     res.json(summary);
   } catch (err) {

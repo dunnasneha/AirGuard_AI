@@ -6,10 +6,8 @@ import {
   TrendingDown,
   ArrowRight,
   Sun,
-  Activity,
   CheckCircle,
   Users,
-  Compass,
   Zap,
 } from 'lucide-react';
 import { EnvironmentalContext, UserProfile } from '../types';

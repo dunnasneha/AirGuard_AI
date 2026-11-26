@@ -8,7 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { Clock, Sun, AlertTriangle, Wind, Info } from 'lucide-react';
+import { Clock, Sun, AlertTriangle } from 'lucide-react';
 import { EnvironmentalContext } from '../types';
 
 interface PollutionTimelinePageProps {
@@ -116,7 +116,11 @@ export const PollutionTimelinePage: React.FC<PollutionTimelinePageProps> = ({ co
           </div>
         </div>
 
-        <div className="h-72 w-full pt-4">
+        <div
+          className="h-72 w-full pt-4"
+          role="img"
+          aria-label={`24-hour AQI and PM2.5 trend chart for ${location.name}`}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <defs>
@@ -155,6 +159,29 @@ export const PollutionTimelinePage: React.FC<PollutionTimelinePageProps> = ({ co
             </AreaChart>
           </ResponsiveContainer>
         </div>
+
+        {/* Screen-reader accessible data table for the hourly trend chart */}
+        <table className="sr-only">
+          <caption>Hourly AQI, PM2.5, and PM10 breakdown for {location.name}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Time</th>
+              <th scope="col">AQI</th>
+              <th scope="col">PM2.5 (µg/m³)</th>
+              <th scope="col">PM10 (µg/m³)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {chartData.map((pt) => (
+              <tr key={pt.time}>
+                <td>{pt.time}</td>
+                <td>{pt.aqi}</td>
+                <td>{pt.pm2_5}</td>
+                <td>{pt.pm10}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {/* Screen Reader & Accessible Hourly Breakdown Table */}

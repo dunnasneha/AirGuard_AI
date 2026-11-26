@@ -18,7 +18,6 @@ import { WeeklyProgressPage } from './pages/WeeklyProgressPage';
 
 import { AIDailyPlan, EnvironmentalContext, UserProfile } from './types';
 import {
-  DEFAULT_PROFILE,
   loadTheme,
   loadUserProfile,
   saveTheme,
@@ -30,9 +29,7 @@ import {
   BarChart3,
   Sparkles,
   Wind,
-  Users,
   MessageSquare,
-  Award,
   AlertCircle,
   TrendingDown,
 } from 'lucide-react';

@@ -11,12 +11,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 3000;
+
+// Trust first reverse proxy so req.ip resolves client IP accurately for rate limiting
+app.set('trust proxy', 1);
 
 // Security and CORS configuration
 app.use(cors({
-  origin: true, // Allow frontend dev and deployed origins
-  credentials: true,
+  origin: true,
 }));
 
 // Request limits to prevent large payloads
@@ -69,9 +71,9 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`AirWise AI Server listening on port ${PORT}`);
-  console.log(`Health check ready at http://localhost:${PORT}/api/health`);
+  console.log(`Health check ready at http://0.0.0.0:${PORT}/api/health`);
   console.log(`Gemini API configured: ${Boolean(process.env.GEMINI_API_KEY)}`);
 });
 

@@ -13,6 +13,15 @@ export function rateLimiter(req: Request, res: Response, next: NextFunction) {
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
   const now = Date.now();
 
+  // Periodically prune expired records to avoid unbounded memory growth
+  if (clientMap.size > 500) {
+    for (const [key, val] of clientMap.entries()) {
+      if (now > val.resetTime) {
+        clientMap.delete(key);
+      }
+    }
+  }
+
   const record = clientMap.get(ip);
 
   if (!record || now > record.resetTime) {

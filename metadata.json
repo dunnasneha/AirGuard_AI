@@ -1,0 +1,8 @@
+{
+  "name": "AirWise AI",
+  "description": "GenAI-powered urban air quality assistant helping families navigate smog and pollution with actionable routines, indoor safety hacks, and low-emission choices.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

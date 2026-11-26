@@ -4,10 +4,7 @@ import {
   Sparkles,
   Send,
   User,
-  ShieldAlert,
   HelpCircle,
-  Clock,
-  Compass,
 } from 'lucide-react';
 import { ChatMessage, EnvironmentalContext, UserProfile } from '../types';
 import { sendAIChatMessage } from '../services/api';
@@ -26,18 +23,74 @@ const EXAMPLE_QUESTIONS = [
   'Create a low-emission routine for tomorrow.',
 ];
 
+function renderInlineMarkdown(text: string): React.ReactNode[] {
+  const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return tokens.map((token, idx) => {
+    if (token.startsWith('**') && token.endsWith('**') && token.length > 4) {
+      return <strong key={idx} className="font-bold">{token.slice(2, -2)}</strong>;
+    }
+    if (token.startsWith('*') && token.endsWith('*') && token.length > 2) {
+      return <em key={idx} className="italic opacity-90">{token.slice(1, -1)}</em>;
+    }
+    return <React.Fragment key={idx}>{token}</React.Fragment>;
+  });
+}
+
+function renderFormattedMessage(content: string): React.ReactNode {
+  const lines = content.split('\n');
+  return (
+    <div className="space-y-1.5">
+      {lines.map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={i} className="h-1" />;
+        }
+        if (trimmed.startsWith('### ')) {
+          return (
+            <h4 key={i} className="font-bold text-sm pt-1">
+              {renderInlineMarkdown(trimmed.slice(4))}
+            </h4>
+          );
+        }
+        if (trimmed.startsWith('- ') || /^\d+\.\s/.test(trimmed)) {
+          return (
+            <div key={i} className="pl-2 flex items-start space-x-1.5">
+              <span className="font-bold opacity-75">•</span>
+              <span>{renderInlineMarkdown(trimmed.replace(/^(-\s|\d+\.\s)/, ''))}</span>
+            </div>
+          );
+        }
+        return <p key={i}>{renderInlineMarkdown(trimmed)}</p>;
+      })}
+    </div>
+  );
+}
+
 export const AssistantPage: React.FC<AssistantPageProps> = ({ context, profile }) => {
+  const buildWelcomeContent = () =>
+    `Hello! I am **AirWise Assistant**.\n\nI have evaluated current environmental conditions in **${context.location.name}** (AQI **${context.airQuality.aqi}**, **${context.airQuality.category}**) and your **${profile.lifestyle}** profile.\n\nHow can I help you optimize your daily commute, outdoor workout, or indoor air quality today?`;
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       sender: 'assistant',
-      content: `Hello! I am **AirWise Assistant**.\n\nI have evaluated current environmental conditions in **${context.location.name}** (AQI **${context.airQuality.aqi}**, **${context.airQuality.category}**) and your **${profile.lifestyle}** profile.\n\nHow can I help you optimize your daily commute, outdoor workout, or indoor air quality today?`,
+      content: buildWelcomeContent(),
       timestamp: new Date().toISOString(),
     },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === 'welcome'
+          ? { ...msg, content: buildWelcomeContent() }
+          : msg
+      )
+    );
+  }, [context.location.name, context.airQuality.aqi, context.airQuality.category, profile.lifestyle]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -110,7 +163,12 @@ export const AssistantPage: React.FC<AssistantPageProps> = ({ context, profile }
       </div>
 
       {/* Chat Messages Box */}
-      <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm min-h-[420px] max-h-[560px] overflow-y-auto space-y-4 flex flex-col">
+      <div
+        role="log"
+        aria-live="polite"
+        aria-label="AirWise Assistant conversation"
+        className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm min-h-[420px] max-h-[560px] overflow-y-auto space-y-4 flex flex-col"
+      >
         {messages.map((msg) => {
           const isUser = msg.sender === 'user';
           return (
@@ -135,7 +193,11 @@ export const AssistantPage: React.FC<AssistantPageProps> = ({ context, profile }
                     : 'bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none'
                 }`}
               >
-                <div className="whitespace-pre-wrap">{msg.content}</div>
+                {isUser ? (
+                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                ) : (
+                  renderFormattedMessage(msg.content)
+                )}
                 <div
                   className={`text-[9px] pt-1 ${
                     isUser ? 'text-emerald-100 text-right' : 'text-slate-400 text-left'
@@ -198,6 +260,7 @@ export const AssistantPage: React.FC<AssistantPageProps> = ({ context, profile }
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={`Ask AirWise Assistant about air quality in ${context.location.name}...`}
+          aria-label={`Ask AirWise Assistant about air quality in ${context.location.name}`}
           disabled={loading}
           className="flex-1 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-sm"
         />

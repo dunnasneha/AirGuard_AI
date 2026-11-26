@@ -1,14 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   TrendingDown,
-  Car,
-  Bus,
-  Footprints,
-  Bike,
-  Users,
-  Package,
   Sparkles,
-  ArrowRight,
   Info,
   CheckCircle2,
 } from 'lucide-react';
@@ -70,6 +63,8 @@ export const ComparatorPage: React.FC<ComparatorPageProps> = ({ context, profile
         {COMPARISON_PRESETS.map((preset) => (
           <button
             key={preset.id}
+            type="button"
+            aria-pressed={selectedPreset.id === preset.id}
             onClick={() => setSelectedPreset(preset)}
             className={`px-4 py-2.5 rounded-2xl font-bold whitespace-nowrap transition-all border ${
               selectedPreset.id === preset.id

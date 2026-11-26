@@ -109,3 +109,22 @@ export function saveTheme(theme: 'light' | 'dark'): void {
     console.warn('Failed to save theme:', err);
   }
 }
+
+export function loadStreakDays(): number {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.STREAK);
+    if (!raw) return 4;
+    const parsed = parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 4;
+  } catch {
+    return 4;
+  }
+}
+
+export function saveStreakDays(days: number): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.STREAK, String(Math.max(0, Math.floor(days))));
+  } catch (err) {
+    console.warn('Failed to save streak days:', err);
+  }
+}
