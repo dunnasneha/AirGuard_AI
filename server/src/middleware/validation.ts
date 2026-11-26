@@ -1,14 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { ChatMessage, EnvironmentalContext, UserProfile } from '../types/index.js';
 
-export function validateCoordinates(req: Request, res: Response, next: NextFunction) {
+export function validateCoordinates(req: Request, res: Response, next: NextFunction): void {
   const lat = parseFloat(req.query.lat as string);
   const lon = parseFloat(req.query.lon as string);
 
   if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Invalid coordinates provided. Latitude must be -90 to 90 and Longitude must be -180 to 180.',
     });
+    return;
   }
 
   next();

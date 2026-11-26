@@ -9,6 +9,7 @@ import {
 import { ChatMessage, EnvironmentalContext, UserProfile } from '../types';
 import { sendAIChatMessage } from '../services/api';
 import { getErrorMessage } from '../utils/errorMessage';
+import { renderFormattedMessage } from '../utils/markdownRenderer';
 
 interface AssistantPageProps {
   context: EnvironmentalContext;
@@ -23,49 +24,6 @@ const EXAMPLE_QUESTIONS = [
   'What should I do if pollution suddenly gets worse?',
   'Create a low-emission routine for tomorrow.',
 ];
-
-function renderInlineMarkdown(text: string): React.ReactNode[] {
-  const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
-  return tokens.map((token, idx) => {
-    if (token.startsWith('**') && token.endsWith('**') && token.length > 4) {
-      return <strong key={idx} className="font-bold">{token.slice(2, -2)}</strong>;
-    }
-    if (token.startsWith('*') && token.endsWith('*') && token.length > 2) {
-      return <em key={idx} className="italic opacity-90">{token.slice(1, -1)}</em>;
-    }
-    return <React.Fragment key={idx}>{token}</React.Fragment>;
-  });
-}
-
-function renderFormattedMessage(content: string): React.ReactNode {
-  const lines = content.split('\n');
-  return (
-    <div className="space-y-1.5">
-      {lines.map((line, i) => {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          return <div key={i} className="h-1" />;
-        }
-        if (trimmed.startsWith('### ')) {
-          return (
-            <h4 key={i} className="font-bold text-sm pt-1">
-              {renderInlineMarkdown(trimmed.slice(4))}
-            </h4>
-          );
-        }
-        if (trimmed.startsWith('- ') || /^\d+\.\s/.test(trimmed)) {
-          return (
-            <div key={i} className="pl-2 flex items-start space-x-1.5">
-              <span className="font-bold opacity-75">•</span>
-              <span>{renderInlineMarkdown(trimmed.replace(/^(-\s|\d+\.\s)/, ''))}</span>
-            </div>
-          );
-        }
-        return <p key={i}>{renderInlineMarkdown(trimmed)}</p>;
-      })}
-    </div>
-  );
-}
 
 export const AssistantPage: React.FC<AssistantPageProps> = ({ context, profile }) => {
   const buildWelcomeContent = () =>
@@ -249,6 +207,7 @@ export const AssistantPage: React.FC<AssistantPageProps> = ({ context, profile }
           {EXAMPLE_QUESTIONS.map((q) => (
             <button
               key={q}
+              type="button"
               onClick={() => handleSend(q)}
               disabled={loading}
               className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium transition-colors text-left"

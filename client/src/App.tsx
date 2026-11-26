@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { AlertCircle } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { AlertBanner } from './components/AlertBanner';
 import { ProfileModal } from './components/ProfileModal';
 import { LoadingSkeleton } from './components/LoadingSkeleton';
+import { MobileBottomNav } from './components/MobileBottomNav';
 
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -25,15 +27,8 @@ import {
 } from './utils/storage';
 import { fetchEnvironmentalData } from './services/api';
 import { getErrorMessage } from './utils/errorMessage';
-import {
-  Home,
-  BarChart3,
-  Sparkles,
-  Wind,
-  MessageSquare,
-  AlertCircle,
-  TrendingDown,
-} from 'lucide-react';
+
+const LOAD_ERROR_MESSAGE = "We couldn't retrieve the latest air-quality data. Please try again.";
 
 export const App: React.FC = () => {
   const [theme, setTheme] = useState<'light' | 'dark'>(loadTheme());
@@ -46,48 +41,59 @@ export const App: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Apply dark mode class to root HTML
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    document.documentElement.classList.toggle('dark', theme === 'dark');
     saveTheme(theme);
   }, [theme]);
 
-  // Load environmental data whenever profile location changes
+  const fetchContext = useCallback(
+    async (isRefresh: boolean, signal?: AbortSignal) => {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError(null);
+
+      try {
+        const data = await fetchEnvironmentalData(profile.location, signal);
+        if (!signal?.aborted) {
+          setContext(data);
+        }
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return;
+        }
+        console.warn('Environmental data fetch failed:', getErrorMessage(err, 'Unknown error'));
+        if (!signal?.aborted) {
+          setError(LOAD_ERROR_MESSAGE);
+        }
+      } finally {
+        if (!signal?.aborted) {
+          if (isRefresh) {
+            setRefreshing(false);
+          } else {
+            setLoading(false);
+          }
+        }
+      }
+    },
+    [profile.location]
+  );
+
   useEffect(() => {
-    loadData();
-  }, [profile.location.latitude, profile.location.longitude]);
+    const controller = new AbortController();
+    void fetchContext(false, controller.signal);
+    return () => controller.abort();
+  }, [fetchContext]);
 
-  const loadData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchEnvironmentalData(profile.location);
-      setContext(data);
-    } catch (err: unknown) {
-      console.warn('Environmental data load failed:', getErrorMessage(err, 'Unknown error'));
-      setError("We couldn't retrieve the latest air-quality data. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleRefresh = useCallback(() => {
+    void fetchContext(true);
+  }, [fetchContext]);
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    setError(null);
-    try {
-      const data = await fetchEnvironmentalData(profile.location);
-      setContext(data);
-    } catch (err: unknown) {
-      console.warn('Environmental data refresh failed:', getErrorMessage(err, 'Unknown error'));
-      setError("We couldn't retrieve the latest air-quality data. Please try again.");
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  const handleRetry = useCallback(() => {
+    void fetchContext(false);
+  }, [fetchContext]);
 
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -96,9 +102,69 @@ export const App: React.FC = () => {
   const handleSaveProfile = (newProfile: UserProfile) => {
     setProfile(newProfile);
     saveUserProfile(newProfile);
-    // If city changed, clear previously generated plan so fresh AI plan can be synthesized
     if (newProfile.location.name !== profile.location.name) {
       setPlan(null);
+    }
+  };
+
+  const renderActivePage = () => {
+    if (currentTab === 'landing') {
+      return (
+        <LandingPage
+          onStart={() => setCurrentTab('dashboard')}
+          onExplore={() => {
+            const el = document.getElementById('how-it-works');
+            el?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          context={context}
+        />
+      );
+    }
+
+    if (!context) return null;
+
+    switch (currentTab) {
+      case 'dashboard':
+        return (
+          <DashboardPage
+            context={context}
+            profile={profile}
+            onRefresh={handleRefresh}
+            isRefreshing={refreshing}
+            onNavigate={setCurrentTab}
+          />
+        );
+      case 'timeline':
+        return <PollutionTimelinePage context={context} />;
+      case 'ai-plan':
+        return (
+          <AIDailyPlanPage
+            context={context}
+            profile={profile}
+            plan={plan}
+            onPlanGenerated={setPlan}
+          />
+        );
+      case 'comparator':
+        return <ComparatorPage context={context} profile={profile} />;
+      case 'indoor':
+        return <IndoorAirPage context={context} profile={profile} />;
+      case 'family':
+        return <FamilyModePage context={context} profile={profile} />;
+      case 'assistant':
+        return <AssistantPage context={context} profile={profile} />;
+      case 'impact':
+        return <ImpactPage context={context} profile={profile} />;
+      case 'progress':
+        return (
+          <WeeklyProgressPage
+            context={context}
+            profile={profile}
+            onNavigateToTab={setCurrentTab}
+          />
+        );
+      default:
+        return null;
     }
   };
 
@@ -111,7 +177,6 @@ export const App: React.FC = () => {
         Skip to main content
       </a>
 
-      {/* Top Navbar */}
       <Navbar
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
@@ -123,9 +188,7 @@ export const App: React.FC = () => {
         aqiValue={context?.airQuality?.aqi}
       />
 
-      {/* Main Content Area */}
       <main id="main-content" className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Alerts & Notifications */}
         {currentTab !== 'landing' && (
           <AlertBanner
             context={context}
@@ -144,7 +207,7 @@ export const App: React.FC = () => {
             </div>
             <button
               type="button"
-              onClick={loadData}
+              onClick={handleRetry}
               className="text-xs font-bold underline hover:no-underline ml-4"
             >
               Retry
@@ -152,83 +215,17 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Dynamic Page Views */}
         {loading && !context ? (
           <div className="py-12">
             <LoadingSkeleton count={3} />
           </div>
         ) : (
-          <>
-            {currentTab === 'landing' && (
-              <LandingPage
-                onStart={() => setCurrentTab('dashboard')}
-                onExplore={() => {
-                  const el = document.getElementById('how-it-works');
-                  el?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                context={context}
-                profile={profile}
-              />
-            )}
-
-            {currentTab === 'dashboard' && context && (
-              <DashboardPage
-                context={context}
-                profile={profile}
-                onRefresh={handleRefresh}
-                isRefreshing={refreshing}
-                onNavigate={setCurrentTab}
-              />
-            )}
-
-            {currentTab === 'timeline' && context && (
-              <PollutionTimelinePage context={context} />
-            )}
-
-            {currentTab === 'ai-plan' && context && (
-              <AIDailyPlanPage
-                context={context}
-                profile={profile}
-                plan={plan}
-                onPlanGenerated={setPlan}
-              />
-            )}
-
-            {currentTab === 'comparator' && context && (
-              <ComparatorPage context={context} profile={profile} />
-            )}
-
-            {currentTab === 'indoor' && context && (
-              <IndoorAirPage context={context} profile={profile} />
-            )}
-
-            {currentTab === 'family' && context && (
-              <FamilyModePage context={context} profile={profile} />
-            )}
-
-            {currentTab === 'assistant' && context && (
-              <AssistantPage context={context} profile={profile} />
-            )}
-
-            {currentTab === 'impact' && context && (
-              <ImpactPage context={context} profile={profile} />
-            )}
-
-            {currentTab === 'progress' && context && (
-              <WeeklyProgressPage
-                context={context}
-                profile={profile}
-                onNavigateToTab={setCurrentTab}
-              />
-            )}
-          </>
+          renderActivePage()
         )}
       </main>
 
-      {/* Footer */}
       <Footer onSelectTab={setCurrentTab} />
 
-      {/* Profile & Location Modal */}
       <ProfileModal
         isOpen={isLocationModalOpen}
         onClose={() => setIsLocationModalOpen(false)}
@@ -236,34 +233,7 @@ export const App: React.FC = () => {
         onSaveProfile={handleSaveProfile}
       />
 
-      {/* Mobile Responsive Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 py-1.5 flex items-center justify-around shadow-lg">
-        {[
-          { id: 'dashboard', label: 'Air', icon: Home },
-          { id: 'timeline', label: 'Timeline', icon: BarChart3 },
-          { id: 'ai-plan', label: 'AI Plan', icon: Sparkles },
-          { id: 'comparator', label: 'Choices', icon: TrendingDown },
-          { id: 'indoor', label: 'Indoor', icon: Wind },
-          { id: 'assistant', label: 'Chat', icon: MessageSquare },
-        ].map((item) => {
-          const Icon = item.icon;
-          const isActive = currentTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setCurrentTab(item.id)}
-              className={`flex flex-col items-center py-1 px-2 rounded-xl text-[10px] font-medium transition-colors ${
-                isActive
-                  ? 'text-emerald-600 dark:text-emerald-400 font-bold'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              <Icon className="h-4 w-4 mb-0.5" />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      <MobileBottomNav currentTab={currentTab} onSelectTab={setCurrentTab} />
     </div>
   );
 };

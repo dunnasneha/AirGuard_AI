@@ -10,20 +10,18 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
-import { EnvironmentalContext, UserProfile } from '../types';
+import { EnvironmentalContext } from '../types';
 
 interface LandingPageProps {
   onStart: () => void;
   onExplore: () => void;
   context: EnvironmentalContext | null;
-  profile: UserProfile;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onStart,
   onExplore,
   context,
-  profile,
 }) => {
   return (
     <div className="space-y-24 py-8">

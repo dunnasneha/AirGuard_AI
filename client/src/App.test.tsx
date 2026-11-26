@@ -185,7 +185,10 @@ describe('AirWise AI Frontend Application Tests', () => {
     localStorage.setItem('airwise_user_profile', JSON.stringify({ location: { name: '' } }));
     render(<App />);
     expect(await screen.findByText(/Live Conditions in Hyderabad/i)).toBeInTheDocument();
-    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/environmental-data?lat=17.385&lon=78.4867'));
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/environmental-data?lat=17.385&lon=78.4867'),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
   });
 
   it('generates AI daily plan and shows alert banner with retry on failure', async () => {

@@ -1,13 +1,6 @@
 import React from 'react';
 import {
-  Wind,
-  Thermometer,
-  Droplets,
-  Gauge,
   Sparkles,
-  Clock,
-  ShieldCheck,
-  TrendingDown,
   ArrowRight,
   Sun,
   AlertTriangle,
@@ -15,7 +8,8 @@ import {
   Info,
 } from 'lucide-react';
 import { EnvironmentalContext, UserProfile } from '../types';
-import { getAqiCardTheme } from '../utils/aqiTheme';
+import { getAqiCardTheme, getAqiHeadline } from '../utils/aqiTheme';
+import { buildEnvironmentalMetrics, DASHBOARD_NAV_CARDS } from '../utils/dashboardMetrics';
 
 interface DashboardPageProps {
   context: EnvironmentalContext;
@@ -33,8 +27,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigate,
 }) => {
   const { airQuality, weather, windows, location, lastUpdated } = context;
-
   const theme = getAqiCardTheme(airQuality.category);
+  const metrics = buildEnvironmentalMetrics(airQuality, weather);
 
   return (
     <div className="space-y-8">
@@ -68,11 +62,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       </div>
 
       {/* Main AQI Hero Card */}
-      <div
-        className={`p-6 sm:p-8 rounded-3xl border ${theme.border} ${theme.bg} shadow-sm transition-card`}
-      >
+      <div className={`p-6 sm:p-8 rounded-3xl border ${theme.border} ${theme.bg} shadow-sm transition-card`}>
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-          {/* Big AQI Number & Category */}
           <div className="lg:col-span-5 flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-6 text-center sm:text-left">
             <div
               className={`w-32 h-32 rounded-3xl bg-gradient-to-br ${theme.gradient} text-white flex flex-col items-center justify-center shadow-lg shadow-emerald-900/10 shrink-0`}
@@ -84,9 +75,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
             <div className="space-y-1.5">
               <div className="inline-flex items-center space-x-1.5">
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${theme.badge}`}
-                >
+                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${theme.badge}`}>
                   {airQuality.category}
                 </span>
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
@@ -94,11 +83,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
-                {airQuality.category === 'Good' && 'Fresh, Clean Air'}
-                {airQuality.category === 'Moderate' && 'Acceptable Air Quality'}
-                {airQuality.category === 'Poor' && 'Unhealthy Particulate Levels'}
-                {airQuality.category === 'Very Poor' && 'High Smog & Haze Alert'}
-                {airQuality.category === 'Severe' && 'Emergency Pollution Episode'}
+                {getAqiHeadline(airQuality.category)}
               </h2>
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm">
                 {airQuality.healthAdvice}
@@ -106,11 +91,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           </div>
 
-          {/* Today's Air Snapshot Narrative */}
           <div className="lg:col-span-7 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center space-x-1.5">
-                <Info className="h-4 w-4 text-emerald-600" />
+                <Info className="h-4 w-4 text-emerald-600" aria-hidden="true" />
                 <span>Today's Air Snapshot</span>
               </span>
               <span className="text-[11px] font-medium text-slate-500">
@@ -122,11 +106,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               Air quality in <strong>{location.name}</strong> is currently rated <strong>{airQuality.category}</strong> with particulate concentrations at {airQuality.pm2_5} µg/m³ for PM2.5 and {airQuality.pm10} µg/m³ for PM10. Outdoor exercise should be timed thoughtfully, especially during periods of higher particulate concentration.
             </p>
 
-            {/* Inversion Windows Highlights */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
               <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-900/40">
                 <div className="flex items-center space-x-1.5 text-emerald-800 dark:text-emerald-300 font-bold text-xs">
-                  <Sun className="h-3.5 w-3.5" />
+                  <Sun className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Better Outdoor Window</span>
                 </div>
                 <div className="text-xs font-semibold text-emerald-900 dark:text-emerald-100 mt-1">
@@ -139,7 +122,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
               <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-900/40">
                 <div className="flex items-center space-x-1.5 text-rose-800 dark:text-rose-300 font-bold text-xs">
-                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Higher Pollution Window</span>
                 </div>
                 <div className="text-xs font-semibold text-rose-900 dark:text-rose-100 mt-1">
@@ -160,62 +143,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           Environmental Parameters (Live Sensors)
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {[
-            {
-              label: 'PM2.5 (Fine Particles)',
-              val: `${airQuality.pm2_5}`,
-              unit: 'µg/m³',
-              desc: 'Penetrates deep into lungs',
-              icon: Wind,
-              status: airQuality.pm2_5 > 60 ? 'Elevated' : 'Normal',
-              isElevated: airQuality.pm2_5 > 60,
-            },
-            {
-              label: 'PM10 (Coarse Dust)',
-              val: `${airQuality.pm10}`,
-              unit: 'µg/m³',
-              desc: 'Road & construction dust',
-              icon: Wind,
-              status: airQuality.pm10 > 100 ? 'Elevated' : 'Normal',
-              isElevated: airQuality.pm10 > 100,
-            },
-            {
-              label: 'Ozone (O₃)',
-              val: `${airQuality.ozone}`,
-              unit: 'µg/m³',
-              desc: 'Photochemical smog gas',
-              icon: Gauge,
-              status: airQuality.ozone > 100 ? 'Elevated' : 'Normal',
-              isElevated: airQuality.ozone > 100,
-            },
-            {
-              label: 'Temperature',
-              val: `${weather.temperature}`,
-              unit: '°C',
-              desc: 'Thermal boundary layer',
-              icon: Thermometer,
-              status: weather.temperature < 15 ? 'Cool Trap' : 'Normal',
-              isElevated: weather.temperature < 15,
-            },
-            {
-              label: 'Relative Humidity',
-              val: `${weather.humidity}`,
-              unit: '%',
-              desc: 'Aerosol moisture trap',
-              icon: Droplets,
-              status: weather.humidity > 75 ? 'High RH' : 'Normal',
-              isElevated: weather.humidity > 75,
-            },
-            {
-              label: 'Wind Speed',
-              val: `${weather.windSpeed}`,
-              unit: 'km/h',
-              desc: weather.windSpeed < 6 ? 'Stagnant dispersion' : 'Active ventilation',
-              icon: Wind,
-              status: weather.windSpeed < 6 ? 'Low Trap' : 'Normal',
-              isElevated: weather.windSpeed < 6,
-            },
-          ].map((m) => {
+          {metrics.map((m) => {
             const Icon = m.icon;
             return (
               <div
@@ -273,42 +201,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
       {/* Feature Navigation Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          {
-            tab: 'timeline',
-            title: 'Hourly Pollution Trend',
-            desc: 'View 24-hour smog forecast curve and safe exercise windows.',
-            icon: Clock,
-            badge: 'Hourly',
-          },
-          {
-            tab: 'comparator',
-            title: 'Choose Cleaner Option',
-            desc: 'Compare solo car vs metro vs carpool emissions & cost.',
-            icon: TrendingDown,
-            badge: 'Decision Tool',
-          },
-          {
-            tab: 'indoor',
-            title: 'Indoor Air Quality Hub',
-            desc: 'Window timing, HEPA filtration hacks, and cooking checklist.',
-            icon: ShieldCheck,
-            badge: 'Checklist',
-          },
-          {
-            tab: 'family',
-            title: 'Family Air Safety',
-            desc: 'Specific protective guidelines for kids, seniors, and asthma.',
-            icon: Wind,
-            badge: 'Family Mode',
-          },
-        ].map((c) => {
-          const Icon = c.icon;
+        {DASHBOARD_NAV_CARDS.map((card) => {
+          const Icon = card.icon;
           return (
             <button
-              key={c.tab}
+              key={card.tab}
               type="button"
-              onClick={() => onNavigate(c.tab)}
+              onClick={() => onNavigate(card.tab)}
               className="p-5 rounded-2xl text-left bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 hover:border-emerald-500/50 dark:hover:border-emerald-500/50 shadow-sm transition-all group"
             >
               <div className="flex items-center justify-between mb-3">
@@ -316,14 +215,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   <Icon className="h-4 w-4" aria-hidden="true" />
                 </div>
                 <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">
-                  {c.badge}
+                  {card.badge}
                 </span>
               </div>
               <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-emerald-600 transition-colors">
-                {c.title}
+                {card.title}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                {c.desc}
+                {card.desc}
               </p>
             </button>
           );

@@ -62,6 +62,14 @@ export function getAQICategory(aqi: number): AQICategory {
   return 'Severe';
 }
 
+const HEALTH_ADVICE_BY_CATEGORY: Record<AQICategory, string> = {
+  Good: 'Air quality is satisfactory. Ideal conditions for outdoor physical activities and natural ventilation.',
+  Moderate: 'Air quality is acceptable. Sensitive individuals with respiratory conditions should monitor prolonged heavy exertion.',
+  Poor: 'Air quality is poor. Children, seniors, and individuals with breathing conditions should limit intense outdoor workouts.',
+  'Very Poor': 'Air quality is very poor. Reduce prolonged outdoor exposure, reschedule high-intensity workouts, and keep indoor filtration running.',
+  Severe: 'Severe pollution alert. Avoid outdoor exertion, keep windows tightly closed, run certified air purifiers, and wear N95/FFP2 masks outdoors.',
+};
+
 export function calculateCompositeAQI(
   pm2_5: number,
   pm10: number,
@@ -73,34 +81,11 @@ export function calculateCompositeAQI(
   const pm25Sub = calculateSubIndex(pm2_5, PM25_BREAKPOINTS);
   const pm10Sub = calculateSubIndex(pm10, PM10_BREAKPOINTS);
 
-  let dominantPollutant = 'PM2.5';
-  let aqi = pm25Sub.aqi;
-
-  if (pm10Sub.aqi > pm25Sub.aqi) {
-    dominantPollutant = 'PM10';
-    aqi = pm10Sub.aqi;
-  }
-
+  const isPm10Dominant = pm10Sub.aqi > pm25Sub.aqi;
+  const dominantPollutant = isPm10Dominant ? 'PM10' : 'PM2.5';
+  const aqi = isPm10Dominant ? pm10Sub.aqi : pm25Sub.aqi;
   const category = getAQICategory(aqi);
-
-  let healthAdvice = '';
-  switch (category) {
-    case 'Good':
-      healthAdvice = 'Air quality is satisfactory. Ideal conditions for outdoor physical activities and natural ventilation.';
-      break;
-    case 'Moderate':
-      healthAdvice = 'Air quality is acceptable. Sensitive individuals with respiratory conditions should monitor prolonged heavy exertion.';
-      break;
-    case 'Poor':
-      healthAdvice = 'Air quality is poor. Children, seniors, and individuals with breathing conditions should limit intense outdoor workouts.';
-      break;
-    case 'Very Poor':
-      healthAdvice = 'Air quality is very poor. Reduce prolonged outdoor exposure, reschedule high-intensity workouts, and keep indoor filtration running.';
-      break;
-    case 'Severe':
-      healthAdvice = 'Severe pollution alert. Avoid outdoor exertion, keep windows tightly closed, run certified air purifiers, and wear N95/FFP2 masks outdoors.';
-      break;
-  }
+  const healthAdvice = HEALTH_ADVICE_BY_CATEGORY[category];
 
   return {
     aqi,

@@ -31,7 +31,7 @@ function resolveApiBase(): string {
   if (
     typeof window !== 'undefined' &&
     window.location.hostname !== 'localhost' &&
-    window.location.hostname !== '127\.0\.0\.1' &&
+    window.location.hostname !== '127.0.0.1' &&
     /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(envUrl)
   ) {
     return '/api';
@@ -66,6 +66,7 @@ async function postJson<T>(endpoint: string, payload: unknown, defaultError: str
   return (await res.json()) as T;
 }
 
+/** Checks backend API liveness via `/api/health`. */
 export async function checkServerHealth(): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/health`);
@@ -77,6 +78,7 @@ export async function checkServerHealth(): Promise<boolean> {
   }
 }
 
+/** Searches global urban locations matching a query string. */
 export async function searchCities(query: string): Promise<LocationInfo[]> {
   try {
     const res = await fetch(`${API_BASE}/cities?q=${encodeURIComponent(query)}`);
@@ -89,7 +91,11 @@ export async function searchCities(query: string): Promise<LocationInfo[]> {
   }
 }
 
-export async function fetchEnvironmentalData(location: LocationInfo): Promise<EnvironmentalContext> {
+/** Fetches live AQI, weather, and hourly pollution windows for a location with single transient retry. */
+export async function fetchEnvironmentalData(
+  location: LocationInfo,
+  signal?: AbortSignal
+): Promise<EnvironmentalContext> {
   const lat = Number.isFinite(location.latitude) ? location.latitude : 17.385;
   const lon = Number.isFinite(location.longitude) ? location.longitude : 78.4867;
   const city = location.name || 'Hyderabad';
@@ -98,8 +104,11 @@ export async function fetchEnvironmentalData(location: LocationInfo): Promise<En
 
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
+    if (signal?.aborted) {
+      throw new DOMException('Request aborted', 'AbortError');
+    }
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, signal ? { signal } : undefined);
       if (res.ok) {
         return (await res.json()) as EnvironmentalContext;
       }
@@ -108,9 +117,12 @@ export async function fetchEnvironmentalData(location: LocationInfo): Promise<En
       }
       lastError = new Error(`HTTP ${res.status}`);
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw err;
+      }
       lastError = err;
     }
-    if (attempt === 0) {
+    if (attempt === 0 && !signal?.aborted) {
       await new Promise((resolve) => setTimeout(resolve, 400));
     }
   }
@@ -119,6 +131,7 @@ export async function fetchEnvironmentalData(location: LocationInfo): Promise<En
     : new Error("We couldn't retrieve the latest air-quality data. Please try again.");
 }
 
+/** Generates a personalized daily action plan using profile and live environmental context. */
 export function fetchAIDailyPlan(
   profile: UserProfile,
   environmentalContext: EnvironmentalContext
@@ -130,6 +143,7 @@ export function fetchAIDailyPlan(
   );
 }
 
+/** Sends a multi-turn user message to the contextual AirWise Assistant. */
 export function sendAIChatMessage(
   message: string,
   history: ChatMessage[],
@@ -143,6 +157,7 @@ export function sendAIChatMessage(
   );
 }
 
+/** Compares two urban commute or lifestyle options with emissions and practicality context. */
 export function fetchOptionComparison(
   optionA: string,
   optionB: string,
@@ -156,6 +171,7 @@ export function fetchOptionComparison(
   );
 }
 
+/** Computes estimated personal CO2 reduction and sustainability streak summary. */
 export function calculateImpactSummary(
   actions: string[],
   streakDays: number = 4
@@ -167,6 +183,7 @@ export function calculateImpactSummary(
   );
 }
 
+/** Retrieves community action benchmark statistics with safe demo fallback. */
 export async function fetchCommunityStats(): Promise<CommunityStats> {
   try {
     const res = await fetch(`${API_BASE}/community/stats`);

@@ -6,16 +6,21 @@ const STORAGE_KEYS = {
   CHECKLIST: 'airwise_indoor_checklist',
   THEME: 'airwise_theme',
   STREAK: 'airwise_streak_days',
+} as const;
+
+const DEFAULT_ACTIONS = ['public_transport', 'work_from_home'];
+
+const DEFAULT_CHECKLIST: Record<string, boolean> = {
+  smoke: true,
+  kitchen: true,
+  dust: false,
+  purifier: true,
+  sensor: false,
 };
 
 export const DEFAULT_PROFILE: UserProfile = {
   lifestyle: 'Student',
-  householdMembers: {
-    adults: 2,
-    children: 1,
-    elderly: 0,
-    sensitive: 0,
-  },
+  householdMembers: { adults: 2, children: 1, elderly: 0, sensitive: 0 },
   commuteMethod: 'Public transport',
   outdoorActivity: 'Walking',
   indoorEnvironment: ['Natural ventilation', 'Closed windows'],
@@ -28,11 +33,44 @@ export const DEFAULT_PROFILE: UserProfile = {
   },
 };
 
+function readJsonStorage<T>(key: string, fallback: T, validate?: (val: unknown) => val is T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed: unknown = JSON.parse(raw);
+    if (validate && !validate(parsed)) return fallback;
+    return (parsed as T) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJsonStorage<T>(key: string, value: T): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.warn(`Failed to write ${key} to localStorage:`, err);
+  }
+}
+
+function isStringArray(val: unknown): val is string[] {
+  return Array.isArray(val) && val.every((item) => typeof item === 'string');
+}
+
+function isBooleanRecord(val: unknown): val is Record<string, boolean> {
+  return (
+    Boolean(val) &&
+    typeof val === 'object' &&
+    !Array.isArray(val) &&
+    Object.values(val as Record<string, unknown>).every((v) => typeof v === 'boolean')
+  );
+}
+
 export function loadUserProfile(): UserProfile {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.PROFILE);
     if (!raw) return DEFAULT_PROFILE;
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw) as Partial<UserProfile> | null;
     if (!parsed || typeof parsed !== 'object') return DEFAULT_PROFILE;
 
     const loc = parsed.location;
@@ -68,57 +106,23 @@ export function loadUserProfile(): UserProfile {
 }
 
 export function saveUserProfile(profile: UserProfile): void {
-  try {
-    localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(profile));
-  } catch (err) {
-    console.warn('Failed to save profile to localStorage:', err);
-  }
+  writeJsonStorage(STORAGE_KEYS.PROFILE, profile);
 }
 
 export function loadLoggedActions(): string[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.ACTIONS);
-    return raw ? JSON.parse(raw) : ['public_transport', 'work_from_home'];
-  } catch {
-    return ['public_transport', 'work_from_home'];
-  }
+  return readJsonStorage(STORAGE_KEYS.ACTIONS, DEFAULT_ACTIONS, isStringArray);
 }
 
 export function saveLoggedActions(actions: string[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEYS.ACTIONS, JSON.stringify(actions));
-  } catch (err) {
-    console.warn('Failed to save actions to localStorage:', err);
-  }
+  writeJsonStorage(STORAGE_KEYS.ACTIONS, actions);
 }
 
 export function loadIndoorChecklist(): Record<string, boolean> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.CHECKLIST);
-    return raw ? JSON.parse(raw) : {
-      'smoke': true,
-      'kitchen': true,
-      'dust': false,
-      'purifier': true,
-      'sensor': false,
-    };
-  } catch {
-    return {
-      'smoke': true,
-      'kitchen': true,
-      'dust': false,
-      'purifier': true,
-      'sensor': false,
-    };
-  }
+  return readJsonStorage(STORAGE_KEYS.CHECKLIST, DEFAULT_CHECKLIST, isBooleanRecord);
 }
 
 export function saveIndoorChecklist(checklist: Record<string, boolean>): void {
-  try {
-    localStorage.setItem(STORAGE_KEYS.CHECKLIST, JSON.stringify(checklist));
-  } catch (err) {
-    console.warn('Failed to save checklist:', err);
-  }
+  writeJsonStorage(STORAGE_KEYS.CHECKLIST, checklist);
 }
 
 export function loadTheme(): 'light' | 'dark' {

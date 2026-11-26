@@ -16,8 +16,32 @@ export interface AirQualityFetchResult {
   demoNotice?: string;
 }
 
+interface RawHourlyPayload {
+  time?: unknown;
+  pm2_5?: unknown;
+  pm10?: unknown;
+  ozone?: unknown;
+}
+
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const aqCache = new TtlCache<AirQualityFetchResult>(CACHE_TTL_MS, 200);
+
+const DEFAULT_POLLUTION_WINDOWS: PollutionWindows = {
+  bestOutdoorWindow: {
+    startHour: 14,
+    endHour: 17,
+    label: '2:00 PM – 5:00 PM',
+    description:
+      'Atmospheric mixing is highest; particulate concentrations tend to disperse slightly in late afternoon.',
+  },
+  peakPollutionWindow: {
+    startHour: 6,
+    endHour: 9,
+    label: '6:00 AM – 9:30 AM',
+    description:
+      'Morning temperature inversion traps vehicle exhaust and ground particulate near breathing level.',
+  },
+};
 
 export function clearAirQualityCache(): void {
   aqCache.clear();
@@ -35,9 +59,54 @@ export function selectHourlyStartIndex(
   return idx === -1 ? 0 : idx;
 }
 
-export async function fetchAirQualityData(
-  location: LocationInfo
-): Promise<AirQualityFetchResult> {
+function formatHourLabel(hour: number): string {
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hr = hour % 12 === 0 ? 12 : hour % 12;
+  return `${hr}:00 ${ampm}`;
+}
+
+function buildHourlySeries(
+  hourlyPayload: RawHourlyPayload | undefined,
+  utcOffsetSeconds: number,
+  fallbackCurrent: Pick<CurrentPollutants, 'pm2_5' | 'pm10' | 'ozone'>
+): HourlyDataPoint[] {
+  const times: string[] = Array.isArray(hourlyPayload?.time) ? hourlyPayload.time : [];
+  const pm25List: number[] = Array.isArray(hourlyPayload?.pm2_5) ? hourlyPayload.pm2_5 : [];
+  const pm10List: number[] = Array.isArray(hourlyPayload?.pm10) ? hourlyPayload.pm10 : [];
+  const ozoneList: number[] = Array.isArray(hourlyPayload?.ozone) ? hourlyPayload.ozone : [];
+
+  const startIndex = selectHourlyStartIndex(times, utcOffsetSeconds);
+  const sliceCount = Math.min(24, times.length - startIndex);
+  const hourlyList: HourlyDataPoint[] = [];
+
+  for (let i = 0; i < sliceCount; i++) {
+    const idx = startIndex + i;
+    const timeStr = times[idx];
+    const parsedHour = parseInt(timeStr.slice(11, 13), 10);
+    const hour = Number.isNaN(parsedHour) ? new Date(timeStr).getHours() : parsedHour;
+    const p25 = pm25List[idx] ?? fallbackCurrent.pm2_5;
+    const p10 = pm10List[idx] ?? fallbackCurrent.pm10;
+    const oz = ozoneList[idx] ?? fallbackCurrent.ozone;
+    const sub = calculateCompositeAQI(p25, p10, oz);
+
+    hourlyList.push({
+      time: `${hour}:00`,
+      hour,
+      pm2_5: Math.round(p25 * 10) / 10,
+      pm10: Math.round(p10 * 10) / 10,
+      ozone: Math.round(oz * 10) / 10,
+      aqi: sub.aqi,
+    });
+  }
+
+  return hourlyList;
+}
+
+/**
+ * Fetches current and 24-hour Open-Meteo air quality data for a coordinate pair,
+ * backed by a bounded 5-minute TTL cache and deterministic fallback estimates.
+ */
+export async function fetchAirQualityData(location: LocationInfo): Promise<AirQualityFetchResult> {
   const { latitude, longitude, name } = location;
   const cacheKey = `${latitude.toFixed(2)},${longitude.toFixed(2)}`;
   const cached = aqCache.get(cacheKey);
@@ -78,71 +147,31 @@ export async function fetchAirQualityData(
       const co = (data.current.carbon_monoxide ?? 300) / 1000;
 
       const current = calculateCompositeAQI(pm2_5, pm10, ozone, no2, so2, co);
-
-      const hourlyList: HourlyDataPoint[] = [];
-      const times: string[] = Array.isArray(data.hourly?.time) ? data.hourly.time : [];
-      const pm25List: number[] = Array.isArray(data.hourly?.pm2_5) ? data.hourly.pm2_5 : [];
-      const pm10List: number[] = Array.isArray(data.hourly?.pm10) ? data.hourly.pm10 : [];
-      const ozoneList: number[] = Array.isArray(data.hourly?.ozone) ? data.hourly.ozone : [];
-
       const utcOffsetSeconds = typeof data.utc_offset_seconds === 'number' ? data.utc_offset_seconds : 0;
-      const startIndex = selectHourlyStartIndex(times, utcOffsetSeconds);
+      const hourly = buildHourlySeries(data.hourly, utcOffsetSeconds, { pm2_5, pm10, ozone });
+      const windows = computePollutionWindows(hourly);
 
-      const sliceCount = Math.min(24, times.length - startIndex);
-      for (let i = 0; i < sliceCount; i++) {
-        const idx = startIndex + i;
-        const timeStr = times[idx];
-        const parsedHour = parseInt(timeStr.slice(11, 13), 10);
-        const hour = Number.isNaN(parsedHour) ? new Date(timeStr).getHours() : parsedHour;
-        const p25 = pm25List[idx] ?? pm2_5;
-        const p10 = pm10List[idx] ?? pm10;
-        const oz = ozoneList[idx] ?? ozone;
-        const sub = calculateCompositeAQI(p25, p10, oz);
-
-        hourlyList.push({
-          time: `${hour}:00`,
-          hour,
-          pm2_5: Math.round(p25 * 10) / 10,
-          pm10: Math.round(p10 * 10) / 10,
-          ozone: Math.round(oz * 10) / 10,
-          aqi: sub.aqi,
-        });
-      }
-
-      const windows = computePollutionWindows(hourlyList);
-
-      const result: AirQualityFetchResult = {
-        current,
-        hourly: hourlyList,
-        windows,
-        isDemo: false,
-      };
+      const result: AirQualityFetchResult = { current, hourly, windows, isDemo: false };
       aqCache.set(cacheKey, result);
       return result;
     }
   } catch (error) {
-    console.warn(`Air quality API failed for ${name}, using high-fidelity fallback:`, error instanceof Error ? error.message : error);
+    console.warn(
+      `Air quality API failed for ${name}, using high-fidelity fallback:`,
+      error instanceof Error ? error.message : error
+    );
   }
 
   return getFallbackAirQuality(location);
 }
 
+/**
+ * Identifies the lowest-pollution outdoor window and peak thermal-inversion window
+ * across the 24-hour hourly forecast.
+ */
 export function computePollutionWindows(hourly: HourlyDataPoint[]): PollutionWindows {
   if (hourly.length === 0) {
-    return {
-      bestOutdoorWindow: {
-        startHour: 14,
-        endHour: 17,
-        label: '2:00 PM – 5:00 PM',
-        description: 'Atmospheric mixing is highest; particulate concentrations tend to disperse slightly in late afternoon.',
-      },
-      peakPollutionWindow: {
-        startHour: 6,
-        endHour: 9,
-        label: '6:00 AM – 9:30 AM',
-        description: 'Morning temperature inversion traps vehicle exhaust and ground particulate near breathing level.',
-      },
-    };
+    return DEFAULT_POLLUTION_WINDOWS;
   }
 
   let minPoint = hourly[0];
@@ -158,23 +187,17 @@ export function computePollutionWindows(hourly: HourlyDataPoint[]): PollutionWin
   const peakStart = maxPoint.hour;
   const peakEnd = (peakStart + 3) % 24;
 
-  const formatH = (h: number) => {
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const hr = h % 12 === 0 ? 12 : h % 12;
-    return `${hr}:00 ${ampm}`;
-  };
-
   return {
     bestOutdoorWindow: {
       startHour: bestStart,
       endHour: bestEnd,
-      label: `${formatH(bestStart)} – ${formatH(bestEnd)}`,
+      label: `${formatHourLabel(bestStart)} – ${formatHourLabel(bestEnd)}`,
       description: `Lowest particulate concentration predicted (${minPoint.pm2_5} µg/m³ PM2.5, AQI ${minPoint.aqi}). Ideal for essential outdoor errands.`,
     },
     peakPollutionWindow: {
       startHour: peakStart,
       endHour: peakEnd,
-      label: `${formatH(peakStart)} – ${formatH(peakEnd)}`,
+      label: `${formatHourLabel(peakStart)} – ${formatHourLabel(peakEnd)}`,
       description: `Highest pollution level predicted (${maxPoint.pm2_5} µg/m³ PM2.5, AQI ${maxPoint.aqi}). Keep windows sealed and limit outdoor exertion.`,
     },
   };
@@ -186,41 +209,19 @@ export function getFallbackAirQuality(location: LocationInfo): AirQualityFetchRe
   const basePM10 = isDelhi ? 245 : 130;
   const current = calculateCompositeAQI(basePM25, basePM10, 42, 38, 14, 1.2);
 
-  const hourly: HourlyDataPoint[] = [];
   const hours = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
-
-  for (const h of hours) {
-    const factor = h >= 13 && h <= 17 ? 0.72 : (h >= 6 && h <= 9 ? 1.35 : (h >= 21 ? 1.2 : 0.95));
+  const hourly: HourlyDataPoint[] = hours.map((h) => {
+    const factor = h >= 13 && h <= 17 ? 0.72 : h >= 6 && h <= 9 ? 1.35 : h >= 21 ? 1.2 : 0.95;
     const p25 = Math.round(basePM25 * factor);
     const p10 = Math.round(basePM10 * factor);
     const sub = calculateCompositeAQI(p25, p10, 35);
-    hourly.push({
-      time: `${h}:00`,
-      hour: h,
-      pm2_5: p25,
-      pm10: p10,
-      ozone: 35,
-      aqi: sub.aqi,
-    });
-  }
+    return { time: `${h}:00`, hour: h, pm2_5: p25, pm10: p10, ozone: 35, aqi: sub.aqi };
+  });
 
   return {
     current,
     hourly,
-    windows: {
-      bestOutdoorWindow: {
-        startHour: 14,
-        endHour: 17,
-        label: '2:00 PM – 5:00 PM',
-        description: 'Sunlight enhances atmospheric boundary layer height, promoting natural dilution of ground-level particles.',
-      },
-      peakPollutionWindow: {
-        startHour: 6,
-        endHour: 9,
-        label: '6:00 AM – 9:00 AM',
-        description: 'Cool ground temperatures create thermal inversion trapping urban vehicle and heating emissions.',
-      },
-    },
+    windows: DEFAULT_POLLUTION_WINDOWS,
     isDemo: true,
     demoNotice: 'Demo data — connect live APIs for current conditions.',
   };
