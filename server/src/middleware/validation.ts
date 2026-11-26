@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { EnvironmentalContext, UserProfile } from '../types/index.js';
+import { ChatMessage, EnvironmentalContext, UserProfile } from '../types/index.js';
 
 export function validateCoordinates(req: Request, res: Response, next: NextFunction) {
   const lat = parseFloat(req.query.lat as string);
@@ -16,7 +16,6 @@ export function validateCoordinates(req: Request, res: Response, next: NextFunct
 
 export function sanitizeString(input: unknown, maxLen: number = 1000): string {
   if (typeof input !== 'string') return '';
-  // Strip control characters and trim
   return input.replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, maxLen);
 }
 
@@ -24,29 +23,35 @@ function toSafeNumber(val: unknown, fallback: number): number {
   return typeof val === 'number' && Number.isFinite(val) ? val : fallback;
 }
 
+function isPlainObject(val: unknown): val is Record<string, unknown> {
+  return Boolean(val) && typeof val === 'object' && !Array.isArray(val);
+}
+
 export function validateAndNormalizeProfile(raw: unknown): UserProfile | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+  if (!isPlainObject(raw)) {
     return null;
   }
 
-  const p = raw as Record<string, any>;
-  const members = p.householdMembers && typeof p.householdMembers === 'object' ? p.householdMembers : {};
-  const loc = p.location && typeof p.location === 'object' ? p.location : {};
+  const members = isPlainObject(raw.householdMembers) ? raw.householdMembers : {};
+  const loc = isPlainObject(raw.location) ? raw.location : {};
 
   return {
-    lifestyle: (sanitizeString(p.lifestyle, 60) || 'Student') as UserProfile['lifestyle'],
+    lifestyle: (sanitizeString(raw.lifestyle, 60) || 'Student') as UserProfile['lifestyle'],
     householdMembers: {
       adults: Math.max(0, Math.min(20, Math.floor(toSafeNumber(members.adults, 1)))),
       children: Math.max(0, Math.min(20, Math.floor(toSafeNumber(members.children, 0)))),
       elderly: Math.max(0, Math.min(20, Math.floor(toSafeNumber(members.elderly, 0)))),
       sensitive: Math.max(0, Math.min(20, Math.floor(toSafeNumber(members.sensitive, 0)))),
     },
-    commuteMethod: (sanitizeString(p.commuteMethod, 60) || 'Public transport') as UserProfile['commuteMethod'],
-    outdoorActivity: (sanitizeString(p.outdoorActivity, 60) || 'Walking') as UserProfile['outdoorActivity'],
-    indoorEnvironment: Array.isArray(p.indoorEnvironment)
-      ? p.indoorEnvironment.map((item) => sanitizeString(item, 60)).filter(Boolean).slice(0, 10) as UserProfile['indoorEnvironment']
+    commuteMethod: (sanitizeString(raw.commuteMethod, 60) || 'Public transport') as UserProfile['commuteMethod'],
+    outdoorActivity: (sanitizeString(raw.outdoorActivity, 60) || 'Walking') as UserProfile['outdoorActivity'],
+    indoorEnvironment: Array.isArray(raw.indoorEnvironment)
+      ? raw.indoorEnvironment
+          .map((item) => sanitizeString(item, 60))
+          .filter(Boolean)
+          .slice(0, 10) as UserProfile['indoorEnvironment']
       : [],
-    sensitivities: sanitizeString(p.sensitivities, 200) || undefined,
+    sensitivities: sanitizeString(raw.sensitivities, 200) || undefined,
     location: {
       name: sanitizeString(loc.name, 100) || 'Selected Location',
       country: sanitizeString(loc.country, 100) || '',
@@ -58,46 +63,41 @@ export function validateAndNormalizeProfile(raw: unknown): UserProfile | null {
 }
 
 export function validateAndNormalizeEnvironmentalContext(raw: unknown): EnvironmentalContext | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+  if (!isPlainObject(raw) || !isPlainObject(raw.location) || !isPlainObject(raw.airQuality)) {
     return null;
   }
 
-  const env = raw as Record<string, any>;
-  if (!env.location || typeof env.location !== 'object' || !env.airQuality || typeof env.airQuality !== 'object') {
+  const locName = sanitizeString(raw.location.name, 100);
+  if (!locName || typeof raw.airQuality.aqi !== 'number' || !Number.isFinite(raw.airQuality.aqi)) {
     return null;
   }
 
-  const locName = sanitizeString(env.location.name, 100);
-  if (!locName || typeof env.airQuality.aqi !== 'number' || !Number.isFinite(env.airQuality.aqi)) {
-    return null;
-  }
-
-  const weather = env.weather && typeof env.weather === 'object' ? env.weather : {};
-  const windows = env.windows && typeof env.windows === 'object' ? env.windows : {};
-  const bestWin = windows.bestOutdoorWindow && typeof windows.bestOutdoorWindow === 'object' ? windows.bestOutdoorWindow : {};
-  const peakWin = windows.peakPollutionWindow && typeof windows.peakPollutionWindow === 'object' ? windows.peakPollutionWindow : {};
+  const weather = isPlainObject(raw.weather) ? raw.weather : {};
+  const windows = isPlainObject(raw.windows) ? raw.windows : {};
+  const bestWin = isPlainObject(windows.bestOutdoorWindow) ? windows.bestOutdoorWindow : {};
+  const peakWin = isPlainObject(windows.peakPollutionWindow) ? windows.peakPollutionWindow : {};
 
   return {
     location: {
       name: locName,
-      country: sanitizeString(env.location.country, 100) || '',
-      admin1: sanitizeString(env.location.admin1, 100) || undefined,
-      latitude: toSafeNumber(env.location.latitude, 0),
-      longitude: toSafeNumber(env.location.longitude, 0),
+      country: sanitizeString(raw.location.country, 100) || '',
+      admin1: sanitizeString(raw.location.admin1, 100) || undefined,
+      latitude: toSafeNumber(raw.location.latitude, 0),
+      longitude: toSafeNumber(raw.location.longitude, 0),
     },
     airQuality: {
-      aqi: Math.max(0, Math.min(500, Math.round(env.airQuality.aqi))),
-      category: (sanitizeString(env.airQuality.category, 30) || 'Moderate') as EnvironmentalContext['airQuality']['category'],
-      pm2_5: toSafeNumber(env.airQuality.pm2_5, 0),
-      pm10: toSafeNumber(env.airQuality.pm10, 0),
-      ozone: toSafeNumber(env.airQuality.ozone, 0),
-      no2: toSafeNumber(env.airQuality.no2, 0),
-      so2: toSafeNumber(env.airQuality.so2, 0),
-      co: toSafeNumber(env.airQuality.co, 0),
-      dominantPollutant: sanitizeString(env.airQuality.dominantPollutant, 30) || 'PM2.5',
-      healthAdvice: sanitizeString(env.airQuality.healthAdvice, 400) || '',
+      aqi: Math.max(0, Math.min(500, Math.round(raw.airQuality.aqi))),
+      category: (sanitizeString(raw.airQuality.category, 30) || 'Moderate') as EnvironmentalContext['airQuality']['category'],
+      pm2_5: toSafeNumber(raw.airQuality.pm2_5, 0),
+      pm10: toSafeNumber(raw.airQuality.pm10, 0),
+      ozone: toSafeNumber(raw.airQuality.ozone, 0),
+      no2: toSafeNumber(raw.airQuality.no2, 0),
+      so2: toSafeNumber(raw.airQuality.so2, 0),
+      co: toSafeNumber(raw.airQuality.co, 0),
+      dominantPollutant: sanitizeString(raw.airQuality.dominantPollutant, 30) || 'PM2.5',
+      healthAdvice: sanitizeString(raw.airQuality.healthAdvice, 400) || '',
     },
-    hourly: Array.isArray(env.hourly) ? env.hourly.slice(0, 48) : [],
+    hourly: Array.isArray(raw.hourly) ? (raw.hourly.slice(0, 48) as EnvironmentalContext['hourly']) : [],
     windows: {
       bestOutdoorWindow: {
         startHour: toSafeNumber(bestWin.startHour, 14),
@@ -119,8 +119,27 @@ export function validateAndNormalizeEnvironmentalContext(raw: unknown): Environm
       weatherCode: toSafeNumber(weather.weatherCode, 0),
       conditionDescription: sanitizeString(weather.conditionDescription, 120) || 'Clear',
     },
-    lastUpdated: sanitizeString(env.lastUpdated, 60) || new Date().toISOString(),
-    isDemo: Boolean(env.isDemo),
-    demoNotice: env.demoNotice ? sanitizeString(env.demoNotice, 200) : undefined,
+    lastUpdated: sanitizeString(raw.lastUpdated, 60) || new Date().toISOString(),
+    isDemo: Boolean(raw.isDemo),
+    demoNotice: raw.demoNotice ? sanitizeString(raw.demoNotice, 200) : undefined,
   };
+}
+
+export function validateAndSanitizeHistory(raw: unknown): ChatMessage[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .slice(-10)
+    .filter((item): item is Record<string, unknown> => isPlainObject(item))
+    .map((item, idx) => {
+      const sender = item.sender === 'user' ? 'user' : 'assistant';
+      const content = sanitizeString(item.content, 1000);
+      return {
+        id: sanitizeString(item.id, 60) || `hist-${idx}`,
+        sender,
+        content,
+        timestamp: sanitizeString(item.timestamp, 60) || '',
+      } as ChatMessage;
+    })
+    .filter((msg) => msg.content.length > 0);
 }

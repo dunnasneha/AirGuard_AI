@@ -1,15 +1,20 @@
 import axios from 'axios';
 import { LocationInfo, WeatherData } from '../types/index.js';
+import { TtlCache } from '../utils/ttlCache.js';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const weatherCache = new Map<string, { expiresAt: number; data: WeatherData }>();
+const weatherCache = new TtlCache<WeatherData>(CACHE_TTL_MS, 200);
+
+export function clearWeatherCache(): void {
+  weatherCache.clear();
+}
 
 export async function fetchWeatherData(location: LocationInfo): Promise<WeatherData> {
   const { latitude, longitude } = location;
   const cacheKey = `${latitude.toFixed(2)},${longitude.toFixed(2)}`;
   const cached = weatherCache.get(cacheKey);
-  if (cached && Date.now() < cached.expiresAt) {
-    return cached.data;
+  if (cached) {
+    return cached;
   }
 
   try {
@@ -34,7 +39,7 @@ export async function fetchWeatherData(location: LocationInfo): Promise<WeatherD
         weatherCode: code,
         conditionDescription: interpretWeatherCode(code),
       };
-      weatherCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, data: result });
+      weatherCache.set(cacheKey, result);
       return result;
     }
   } catch (error) {

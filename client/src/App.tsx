@@ -24,6 +24,7 @@ import {
   saveUserProfile,
 } from './utils/storage';
 import { fetchEnvironmentalData } from './services/api';
+import { getErrorMessage } from './utils/errorMessage';
 import {
   Home,
   BarChart3,
@@ -66,8 +67,8 @@ export const App: React.FC = () => {
     try {
       const data = await fetchEnvironmentalData(profile.location);
       setContext(data);
-    } catch (err: any) {
-      console.warn('Environmental data load failed:', err);
+    } catch (err: unknown) {
+      console.warn('Environmental data load failed:', getErrorMessage(err, 'Unknown error'));
       setError("We couldn't retrieve the latest air-quality data. Please try again.");
     } finally {
       setLoading(false);
@@ -80,8 +81,8 @@ export const App: React.FC = () => {
     try {
       const data = await fetchEnvironmentalData(profile.location);
       setContext(data);
-    } catch (err: any) {
-      console.warn('Environmental data refresh failed:', err);
+    } catch (err: unknown) {
+      console.warn('Environmental data refresh failed:', getErrorMessage(err, 'Unknown error'));
       setError("We couldn't retrieve the latest air-quality data. Please try again.");
     } finally {
       setRefreshing(false);
@@ -103,6 +104,13 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:rounded-xl focus:bg-emerald-600 focus:text-white focus:text-xs focus:font-bold"
+      >
+        Skip to main content
+      </a>
+
       {/* Top Navbar */}
       <Navbar
         currentTab={currentTab}
@@ -116,7 +124,7 @@ export const App: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main id="main-content" className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Alerts & Notifications */}
         {currentTab !== 'landing' && (
           <AlertBanner
@@ -126,12 +134,16 @@ export const App: React.FC = () => {
         )}
 
         {error && (
-          <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 dark:bg-rose-950 dark:border-rose-900 dark:text-rose-200 text-xs flex items-center justify-between">
+          <div
+            role="alert"
+            className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 dark:bg-rose-950 dark:border-rose-900 dark:text-rose-200 text-xs flex items-center justify-between"
+          >
             <div className="flex items-center space-x-2">
-              <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+              <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" aria-hidden="true" />
               <span>{error}</span>
             </div>
             <button
+              type="button"
               onClick={loadData}
               className="text-xs font-bold underline hover:no-underline ml-4"
             >

@@ -4,23 +4,28 @@ import { fetchAirQualityData } from '../services/airQualityService.js';
 import { fetchWeatherData } from '../services/weatherService.js';
 import {
   generateDailyActionPlan,
-  getAirWiseChatResponse,
+  getAirWiseChatWithSource,
   getCleanerOptionComparison,
 } from '../services/geminiService.js';
-import { computeTotalImpact } from '../services/impactService.js';
+import { COMMUNITY_DEMO_STATS, computeTotalImpact } from '../services/impactService.js';
 import { rateLimiter } from '../middleware/rateLimiter.js';
 import {
   sanitizeString,
   validateAndNormalizeEnvironmentalContext,
   validateAndNormalizeProfile,
+  validateAndSanitizeHistory,
   validateCoordinates,
 } from '../middleware/validation.js';
 import { EnvironmentalContext, LocationInfo } from '../types/index.js';
 
 const router = Router();
 
+function sendError(res: Response, status: number, error: string) {
+  return res.status(status).json({ error });
+}
+
 // 1. Health check (Required: GET /api/health -> {"status": "ok"})
-router.get('/health', (req: Request, res: Response) => {
+router.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     version: '1.0.0',
@@ -31,12 +36,17 @@ router.get('/health', (req: Request, res: Response) => {
 
 // 2. City Search & Presets
 router.get('/cities', async (req: Request, res: Response) => {
-  const query = sanitizeString(req.query.q);
-  if (!query) {
-    return res.json({ cities: POPULAR_CITIES });
+  try {
+    const query = sanitizeString(req.query.q, 100);
+    if (!query) {
+      return res.json({ cities: POPULAR_CITIES });
+    }
+    const results = await searchCities(query);
+    return res.json({ cities: results });
+  } catch (err) {
+    console.error('Error searching cities:', err instanceof Error ? err.message : err);
+    return sendError(res, 500, 'Failed to search cities.');
   }
-  const results = await searchCities(query);
-  res.json({ cities: results });
 });
 
 // 3. Environmental Data (Air Quality + Weather Context)
@@ -44,8 +54,8 @@ router.get('/environmental-data', validateCoordinates, async (req: Request, res:
   try {
     const lat = parseFloat(req.query.lat as string);
     const lon = parseFloat(req.query.lon as string);
-    const cityName = sanitizeString(req.query.city) || 'Selected Location';
-    const country = sanitizeString(req.query.country) || '';
+    const cityName = sanitizeString(req.query.city, 100) || 'Selected Location';
+    const country = sanitizeString(req.query.country, 100) || '';
 
     const location: LocationInfo = {
       name: cityName,
@@ -70,12 +80,10 @@ router.get('/environmental-data', validateCoordinates, async (req: Request, res:
       demoNotice: aqResult.demoNotice,
     };
 
-    res.json(context);
+    return res.json(context);
   } catch (err) {
-    console.error('Error fetching environmental data:', err);
-    res.status(500).json({
-      error: "We couldn't retrieve the latest air-quality data. Please try again.",
-    });
+    console.error('Error fetching environmental data:', err instanceof Error ? err.message : err);
+    return sendError(res, 500, "We couldn't retrieve the latest air-quality data. Please try again.");
   }
 });
 
@@ -86,45 +94,52 @@ router.post('/ai/daily-plan', rateLimiter, async (req: Request, res: Response) =
     const normalizedEnv = validateAndNormalizeEnvironmentalContext(req.body?.environmentalContext);
 
     if (!normalizedProfile || !normalizedEnv) {
-      return res.status(400).json({
-        error: 'Valid profile and environmentalContext (with location.name and airQuality.aqi) are required.',
-      });
+      return sendError(
+        res,
+        400,
+        'Valid profile and environmentalContext (with location.name and airQuality.aqi) are required.'
+      );
     }
 
     const plan = await generateDailyActionPlan(normalizedProfile, normalizedEnv);
-    res.json(plan);
+    return res.json(plan);
   } catch (err) {
-    console.error('Error generating AI daily plan:', err);
-    res.status(500).json({
-      error: 'Failed to generate personalized daily plan. Please try again.',
-    });
+    console.error('Error generating AI daily plan:', err instanceof Error ? err.message : err);
+    return sendError(res, 500, 'Failed to generate personalized daily plan. Please try again.');
   }
 });
 
 // 5. GenAI Conversational AirWise Assistant
 router.post('/ai/chat', rateLimiter, async (req: Request, res: Response) => {
   try {
-    const { message, history = [] } = req.body || {};
-    const cleanMsg = sanitizeString(message);
+    const cleanMsg = sanitizeString(req.body?.message, 1000);
 
     if (!cleanMsg) {
-      return res.status(400).json({ error: 'A message query is required.' });
+      return sendError(res, 400, 'A message query is required.');
     }
 
     const normalizedProfile = validateAndNormalizeProfile(req.body?.profile);
     const normalizedEnv = validateAndNormalizeEnvironmentalContext(req.body?.environmentalContext);
 
     if (!normalizedProfile || !normalizedEnv) {
-      return res.status(400).json({
-        error: 'Valid profile and environmentalContext (with location.name and airQuality.aqi) are required for contextual AI.',
-      });
+      return sendError(
+        res,
+        400,
+        'Valid profile and environmentalContext (with location.name and airQuality.aqi) are required for contextual AI.'
+      );
     }
 
-    const safeHistory = Array.isArray(history) ? history.slice(-10) : [];
-    const reply = await getAirWiseChatResponse(cleanMsg, safeHistory, normalizedProfile, normalizedEnv);
+    const safeHistory = validateAndSanitizeHistory(req.body?.history);
+    const { reply, generatedBy } = await getAirWiseChatWithSource(
+      cleanMsg,
+      safeHistory,
+      normalizedProfile,
+      normalizedEnv
+    );
 
-    res.json({
+    return res.json({
       reply,
+      generatedBy,
       contextUsed: {
         location: normalizedEnv.location.name,
         aqi: normalizedEnv.airQuality.aqi,
@@ -133,10 +148,8 @@ router.post('/ai/chat', rateLimiter, async (req: Request, res: Response) => {
       },
     });
   } catch (err) {
-    console.error('Error handling AI chat request:', err);
-    res.status(500).json({
-      error: 'Assistant is temporarily busy. Please try asking again.',
-    });
+    console.error('Error handling AI chat request:', err instanceof Error ? err.message : err);
+    return sendError(res, 500, 'Assistant is temporarily busy. Please try asking again.');
   }
 });
 
@@ -149,9 +162,11 @@ router.post('/ai/comparator', rateLimiter, async (req: Request, res: Response) =
     const normalizedEnv = validateAndNormalizeEnvironmentalContext(req.body?.environmentalContext);
 
     if (!cleanA || !cleanB || !normalizedProfile || !normalizedEnv) {
-      return res.status(400).json({
-        error: 'Valid optionA, optionB, profile, and environmentalContext are required.',
-      });
+      return sendError(
+        res,
+        400,
+        'Valid optionA, optionB, profile, and environmentalContext are required.'
+      );
     }
 
     const comparison = await getCleanerOptionComparison(
@@ -161,10 +176,10 @@ router.post('/ai/comparator', rateLimiter, async (req: Request, res: Response) =
       normalizedEnv
     );
 
-    res.json(comparison);
+    return res.json(comparison);
   } catch (err) {
-    console.error('Error comparing options:', err);
-    res.status(500).json({ error: 'Failed to compare options.' });
+    console.error('Error comparing options:', err instanceof Error ? err.message : err);
+    return sendError(res, 500, 'Failed to compare options.');
   }
 });
 
@@ -175,38 +190,28 @@ router.post('/impact/calculate', (req: Request, res: Response) => {
     const rawStreak = req.body?.streakDays;
 
     if (rawActions !== undefined && !Array.isArray(rawActions)) {
-      return res.status(400).json({ error: 'actions must be an array of action identifiers.' });
+      return sendError(res, 400, 'actions must be an array of action identifiers.');
     }
 
     const actions = Array.isArray(rawActions)
       ? rawActions.filter((item): item is string => typeof item === 'string').slice(0, 50)
       : [];
-    const streakDays = typeof rawStreak === 'number' && Number.isFinite(rawStreak)
-      ? Math.max(0, Math.min(365, Math.floor(rawStreak)))
-      : 4;
+    const streakDays =
+      typeof rawStreak === 'number' && Number.isFinite(rawStreak)
+        ? Math.max(0, Math.min(365, Math.floor(rawStreak)))
+        : 4;
 
     const summary = computeTotalImpact(actions, streakDays);
-    res.json(summary);
+    return res.json(summary);
   } catch (err) {
-    console.error('Error calculating impact:', err);
-    res.status(500).json({ error: 'Failed to calculate impact.' });
+    console.error('Error calculating impact:', err instanceof Error ? err.message : err);
+    return sendError(res, 500, 'Failed to calculate impact.');
   }
 });
 
-// 8. Community Activity Endpoint (Transparently labeled per requirements)
-router.get('/community/stats', (req: Request, res: Response) => {
-  res.json({
-    title: 'Community Air Actions',
-    isDemoSample: true,
-    notice: 'Demo community activity — collective urban smog reduction stats from community participants.',
-    metrics: {
-      cleanerChoices: 1240,
-      carTripsAvoided: 680,
-      indoorChecklistsCompleted: 430,
-      estimatedCo2PreventedKg: 980,
-      activeParticipatingHouseholds: 312,
-    },
-  });
+// 8. Community Activity Endpoint (Transparently labeled)
+router.get('/community/stats', (_req: Request, res: Response) => {
+  res.json(COMMUNITY_DEMO_STATS);
 });
 
 export default router;

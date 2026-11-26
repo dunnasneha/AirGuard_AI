@@ -21,27 +21,27 @@ export const Footer: React.FC<{ onSelectTab: (tab: string) => void }> = ({ onSel
 
           {/* Quick Links */}
           <div>
-            <h4 className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wider mb-3">
+            <h2 className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wider mb-3">
               Navigation
-            </h4>
+            </h2>
             <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
               <li>
-                <button onClick={() => onSelectTab('dashboard')} className="hover:text-emerald-600 dark:hover:text-emerald-400">
+                <button type="button" onClick={() => onSelectTab('dashboard')} className="hover:text-emerald-600 dark:hover:text-emerald-400">
                   Dashboard
                 </button>
               </li>
               <li>
-                <button onClick={() => onSelectTab('ai-plan')} className="hover:text-emerald-600 dark:hover:text-emerald-400">
+                <button type="button" onClick={() => onSelectTab('ai-plan')} className="hover:text-emerald-600 dark:hover:text-emerald-400">
                   AI Action Plan
                 </button>
               </li>
               <li>
-                <button onClick={() => onSelectTab('indoor')} className="hover:text-emerald-600 dark:hover:text-emerald-400">
+                <button type="button" onClick={() => onSelectTab('indoor')} className="hover:text-emerald-600 dark:hover:text-emerald-400">
                   Indoor Air Quality Hub
                 </button>
               </li>
               <li>
-                <button onClick={() => onSelectTab('family')} className="hover:text-emerald-600 dark:hover:text-emerald-400">
+                <button type="button" onClick={() => onSelectTab('family')} className="hover:text-emerald-600 dark:hover:text-emerald-400">
                   Family Air Safety
                 </button>
               </li>
@@ -50,9 +50,9 @@ export const Footer: React.FC<{ onSelectTab: (tab: string) => void }> = ({ onSel
 
           {/* Environmental Data Sources */}
           <div>
-            <h4 className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wider mb-3">
+            <h2 className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wider mb-3">
               Data & AI Sources
-            </h4>
+            </h2>
             <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
               <li>
                 <a

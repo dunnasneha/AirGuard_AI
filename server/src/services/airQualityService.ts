@@ -6,6 +6,7 @@ import {
   PollutionWindows,
 } from '../types/index.js';
 import { calculateCompositeAQI } from '../utils/aqiCalculator.js';
+import { TtlCache } from '../utils/ttlCache.js';
 
 export interface AirQualityFetchResult {
   current: CurrentPollutants;
@@ -16,7 +17,23 @@ export interface AirQualityFetchResult {
 }
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const aqCache = new Map<string, { expiresAt: number; data: AirQualityFetchResult }>();
+const aqCache = new TtlCache<AirQualityFetchResult>(CACHE_TTL_MS, 200);
+
+export function clearAirQualityCache(): void {
+  aqCache.clear();
+}
+
+export function selectHourlyStartIndex(
+  times: string[],
+  utcOffsetSeconds: number = 0,
+  nowMs: number = Date.now()
+): number {
+  if (!Array.isArray(times) || times.length === 0) return 0;
+  const safeOffset = Number.isFinite(utcOffsetSeconds) ? utcOffsetSeconds : 0;
+  const currentLocalIsoHour = new Date(nowMs + safeOffset * 1000).toISOString().slice(0, 13);
+  const idx = times.findIndex((t) => typeof t === 'string' && t.startsWith(currentLocalIsoHour));
+  return idx === -1 ? 0 : idx;
+}
 
 export async function fetchAirQualityData(
   location: LocationInfo
@@ -24,8 +41,8 @@ export async function fetchAirQualityData(
   const { latitude, longitude, name } = location;
   const cacheKey = `${latitude.toFixed(2)},${longitude.toFixed(2)}`;
   const cached = aqCache.get(cacheKey);
-  if (cached && Date.now() < cached.expiresAt) {
-    return cached.data;
+  if (cached) {
+    return cached;
   }
 
   try {
@@ -58,21 +75,18 @@ export async function fetchAirQualityData(
       const ozone = data.current.ozone ?? 30;
       const no2 = data.current.nitrogen_dioxide ?? 20;
       const so2 = data.current.sulphur_dioxide ?? 10;
-      const co = (data.current.carbon_monoxide ?? 300) / 1000; // convert to mg/m³
+      const co = (data.current.carbon_monoxide ?? 300) / 1000;
 
       const current = calculateCompositeAQI(pm2_5, pm10, ozone, no2, so2, co);
 
-      // Extract hourly data for the next 24 hours starting from current local hour
       const hourlyList: HourlyDataPoint[] = [];
-      const times: string[] = data.hourly?.time || [];
-      const pm25List: number[] = data.hourly?.pm2_5 || [];
-      const pm10List: number[] = data.hourly?.pm10 || [];
-      const ozoneList: number[] = data.hourly?.ozone || [];
+      const times: string[] = Array.isArray(data.hourly?.time) ? data.hourly.time : [];
+      const pm25List: number[] = Array.isArray(data.hourly?.pm2_5) ? data.hourly.pm2_5 : [];
+      const pm10List: number[] = Array.isArray(data.hourly?.pm10) ? data.hourly.pm10 : [];
+      const ozoneList: number[] = Array.isArray(data.hourly?.ozone) ? data.hourly.ozone : [];
 
       const utcOffsetSeconds = typeof data.utc_offset_seconds === 'number' ? data.utc_offset_seconds : 0;
-      const currentLocalIsoHour = new Date(Date.now() + utcOffsetSeconds * 1000).toISOString().slice(0, 13);
-      let startIndex = times.findIndex((t) => t.startsWith(currentLocalIsoHour));
-      if (startIndex === -1) startIndex = 0;
+      const startIndex = selectHourlyStartIndex(times, utcOffsetSeconds);
 
       const sliceCount = Math.min(24, times.length - startIndex);
       for (let i = 0; i < sliceCount; i++) {
@@ -95,7 +109,6 @@ export async function fetchAirQualityData(
         });
       }
 
-      // Compute Better Outdoor Window and Higher Pollution Window
       const windows = computePollutionWindows(hourlyList);
 
       const result: AirQualityFetchResult = {
@@ -104,18 +117,17 @@ export async function fetchAirQualityData(
         windows,
         isDemo: false,
       };
-      aqCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, data: result });
+      aqCache.set(cacheKey, result);
       return result;
     }
   } catch (error) {
     console.warn(`Air quality API failed for ${name}, using high-fidelity fallback:`, error instanceof Error ? error.message : error);
   }
 
-  // Graceful Fallback (clearly labeled Demo Mode per requirements)
   return getFallbackAirQuality(location);
 }
 
-function computePollutionWindows(hourly: HourlyDataPoint[]): PollutionWindows {
+export function computePollutionWindows(hourly: HourlyDataPoint[]): PollutionWindows {
   if (hourly.length === 0) {
     return {
       bestOutdoorWindow: {
@@ -133,7 +145,6 @@ function computePollutionWindows(hourly: HourlyDataPoint[]): PollutionWindows {
     };
   }
 
-  // Find min and max AQI in daylight / early night hours
   let minPoint = hourly[0];
   let maxPoint = hourly[0];
 
@@ -170,7 +181,6 @@ function computePollutionWindows(hourly: HourlyDataPoint[]): PollutionWindows {
 }
 
 export function getFallbackAirQuality(location: LocationInfo): AirQualityFetchResult {
-  // Typical urban winter profile for Indian cities
   const isDelhi = location.name.toLowerCase().includes('delhi');
   const basePM25 = isDelhi ? 165 : 85;
   const basePM10 = isDelhi ? 245 : 130;
@@ -180,7 +190,6 @@ export function getFallbackAirQuality(location: LocationInfo): AirQualityFetchRe
   const hours = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
 
   for (const h of hours) {
-    // Inversion curve: high in morning/night, lower in afternoon
     const factor = h >= 13 && h <= 17 ? 0.72 : (h >= 6 && h <= 9 ? 1.35 : (h >= 21 ? 1.2 : 0.95));
     const p25 = Math.round(basePM25 * factor);
     const p10 = Math.round(basePM10 * factor);

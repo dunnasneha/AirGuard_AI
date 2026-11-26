@@ -42,7 +42,7 @@ export const FamilyModePage: React.FC<FamilyModePageProps> = ({ context, profile
           todayRecommendation: isSevere
             ? 'Transition all outdoor school physical activities to indoor rooms. Avoid early morning bus stops without an appropriately fitted pediatric N95 mask.'
             : isPoor
-            ? 'Limit high-intensity outdoor playground runs to 30 minutes in the afternoon window (2:00 PM – 5:00 PM).'
+            ? `Limit high-intensity outdoor playground runs to 30 minutes in the afternoon window (${context.windows.bestOutdoorWindow.label}).`
             : 'Safe for normal outdoor school sports and park play.',
           outdoor: 'Reschedule morning outdoor soccer/running to afternoons when the inversion layer breaks.',
           indoor: 'Run bedroom air purifier continuously on medium/high during nap times and overnight sleep.',
@@ -93,7 +93,7 @@ export const FamilyModePage: React.FC<FamilyModePageProps> = ({ context, profile
       {/* Header */}
       <div>
         <div className="flex items-center space-x-2">
-          <Users className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+          <Users className="h-6 w-6 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
             Family Air Safety
           </h1>
@@ -104,13 +104,22 @@ export const FamilyModePage: React.FC<FamilyModePageProps> = ({ context, profile
       </div>
 
       {/* Selector Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div
+        role="tablist"
+        aria-label="Household member group"
+        className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+      >
         {memberTabs.map((tab) => {
           const Icon = tab.icon;
           const isSelected = selectedMember === tab.id;
           return (
             <button
               key={tab.id}
+              type="button"
+              id={`family-tab-${tab.id}`}
+              role="tab"
+              aria-selected={isSelected}
+              aria-controls="family-guidance-panel"
               onClick={() => setSelectedMember(tab.id as FamilyMemberKey)}
               className={`p-4 rounded-2xl border text-left transition-all ${
                 isSelected
@@ -119,7 +128,7 @@ export const FamilyModePage: React.FC<FamilyModePageProps> = ({ context, profile
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <Icon className={`h-5 w-5 ${isSelected ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`} />
+                <Icon className={`h-5 w-5 ${isSelected ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`} aria-hidden="true" />
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                   {tab.count} in home
                 </span>
@@ -131,7 +140,12 @@ export const FamilyModePage: React.FC<FamilyModePageProps> = ({ context, profile
       </div>
 
       {/* Main Guidance Card */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-6">
+      <div
+        id="family-guidance-panel"
+        role="tabpanel"
+        aria-labelledby={`family-tab-${selectedMember}`}
+        className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-6"
+      >
         <div>
           <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 mb-2">
             <Sparkles className="h-3 w-3" />

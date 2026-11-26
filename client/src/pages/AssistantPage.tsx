@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { ChatMessage, EnvironmentalContext, UserProfile } from '../types';
 import { sendAIChatMessage } from '../services/api';
+import { getErrorMessage } from '../utils/errorMessage';
 
 interface AssistantPageProps {
   context: EnvironmentalContext;
@@ -119,13 +120,17 @@ export const AssistantPage: React.FC<AssistantPageProps> = ({ context, profile }
         content: res.reply,
         timestamp: new Date().toISOString(),
         contextUsed: res.contextUsed,
+        generatedBy: res.generatedBy,
       };
       setMessages((prev) => [...prev, assistantMsg]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errorMsg: ChatMessage = {
         id: `assistant-err-${Date.now()}`,
         sender: 'assistant',
-        content: "I'm temporarily experiencing connectivity issues with the AI endpoint. Please try re-sending your question.",
+        content: getErrorMessage(
+          err,
+          "I'm temporarily experiencing connectivity issues with the AI endpoint. Please try re-sending your question."
+        ),
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -152,12 +157,12 @@ export const AssistantPage: React.FC<AssistantPageProps> = ({ context, profile }
       {/* Context Indicator Pill */}
       <div className="p-3 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 dark:bg-emerald-950/40 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 flex flex-wrap items-center justify-between gap-2 shadow-sm">
         <div className="flex items-center space-x-2">
-          <Sparkles className="h-4 w-4 text-emerald-600 shrink-0" />
+          <Sparkles className="h-4 w-4 text-emerald-600 shrink-0" aria-hidden="true" />
           <span>
-            Context Active: <strong>{context.location.name}</strong> • AQI <strong>{context.airQuality.aqi}</strong> ({context.airQuality.category}) • <strong>{profile.lifestyle}</strong>
+            Context Active: <strong>{context.location.name}</strong> • AQI <strong>{context.airQuality.aqi}</strong> ({context.airQuality.category}) • PM2.5 <strong>{context.airQuality.pm2_5} µg/m³</strong> • Wind <strong>{context.weather.windSpeed} km/h</strong> • <strong>{profile.lifestyle}</strong>
           </span>
         </div>
-        <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-full">
+        <span className="text-[10px] text-emerald-800 dark:text-emerald-300 font-semibold bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-full">
           Live Sensor Context Connected
         </span>
       </div>
@@ -183,7 +188,7 @@ export const AssistantPage: React.FC<AssistantPageProps> = ({ context, profile }
                     : 'bg-gradient-to-tr from-emerald-600 to-teal-500 shadow-md shadow-emerald-500/20'
                 }`}
               >
-                {isUser ? <User className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+                {isUser ? <User className="h-4 w-4" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
               </div>
 
               <div
@@ -199,11 +204,18 @@ export const AssistantPage: React.FC<AssistantPageProps> = ({ context, profile }
                   renderFormattedMessage(msg.content)
                 )}
                 <div
-                  className={`text-[9px] pt-1 ${
-                    isUser ? 'text-emerald-100 text-right' : 'text-slate-400 text-left'
+                  className={`text-[10px] pt-1 flex flex-wrap items-center justify-between gap-2 ${
+                    isUser ? 'text-emerald-100 text-right' : 'text-slate-500 dark:text-slate-400 text-left'
                   }`}
                 >
-                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <span>
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  {!isUser && msg.contextUsed && (
+                    <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                      Grounded: {msg.contextUsed.location} AQI {msg.contextUsed.aqi} • {msg.generatedBy === 'gemini' ? 'Gemini' : 'Rule Engine'}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

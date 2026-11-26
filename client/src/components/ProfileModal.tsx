@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   MapPin,
@@ -73,6 +73,16 @@ const INDOOR_OPTIONS: IndoorEnvironment[] = [
   'No purifier',
 ];
 
+type ProfileTab = 'location' | 'lifestyle' | 'family' | 'commute' | 'indoor';
+
+const PROFILE_TABS: { id: ProfileTab; label: string; icon: typeof MapPin }[] = [
+  { id: 'location', label: '1. Location', icon: MapPin },
+  { id: 'lifestyle', label: '2. Lifestyle', icon: Briefcase },
+  { id: 'family', label: '3. Family', icon: Users },
+  { id: 'commute', label: '4. Commute & Outdoor', icon: Car },
+  { id: 'indoor', label: '5. Indoor Air', icon: Home },
+];
+
 export const ProfileModal: React.FC<ProfileModalProps> = ({
   isOpen,
   onClose,
@@ -83,13 +93,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [citySearchQuery, setCitySearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<LocationInfo[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [activeTab, setActiveTab] = useState<'location' | 'lifestyle' | 'family' | 'commute' | 'indoor'>('location');
+  const [activeTab, setActiveTab] = useState<ProfileTab>('location');
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setFormData(profile);
       setSearchResults([]);
       setCitySearchQuery('');
+      closeButtonRef.current?.focus();
     }
   }, [isOpen, profile]);
 
@@ -164,8 +176,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           </div>
           <button
+            ref={closeButtonRef}
+            type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
             aria-label="Close setup modal"
           >
             <X className="h-5 w-5" />
@@ -173,27 +187,30 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center space-x-1 px-6 pt-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-xs overflow-x-auto">
-          {[
-            { id: 'location', label: '1. Location', icon: MapPin },
-            { id: 'lifestyle', label: '2. Lifestyle', icon: Briefcase },
-            { id: 'family', label: '3. Family', icon: Users },
-            { id: 'commute', label: '4. Commute & Outdoor', icon: Car },
-            { id: 'indoor', label: '5. Indoor Air', icon: Home },
-          ].map((tab) => {
+        <div
+          role="tablist"
+          aria-label="Profile configuration steps"
+          className="flex items-center space-x-1 px-6 pt-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-xs overflow-x-auto"
+        >
+          {PROFILE_TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                type="button"
+                role="tab"
+                id={`profile-tab-${tab.id}`}
+                aria-selected={isActive}
+                aria-controls={`profile-panel-${tab.id}`}
+                onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center space-x-1.5 py-2.5 px-3 border-b-2 font-medium whitespace-nowrap transition-colors ${
                   isActive
                     ? 'border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-300 font-bold'
-                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                    : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
               >
-                <Icon className="h-3.5 w-3.5" />
+                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>{tab.label}</span>
               </button>
             );
@@ -201,7 +218,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1 text-sm">
+        <div
+          role="tabpanel"
+          id={`profile-panel-${activeTab}`}
+          aria-labelledby={`profile-tab-${activeTab}`}
+          className="p-6 overflow-y-auto space-y-6 flex-1 text-sm"
+        >
           {/* Tab 1: Location */}
           {activeTab === 'location' && (
             <div className="space-y-4">

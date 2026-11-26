@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   TrendingDown,
   CheckCircle2,
   Info,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import { EnvironmentalContext, ImpactSummary, UserProfile } from '../types';
 import { calculateImpactSummary } from '../services/api';
 import { loadLoggedActions, saveLoggedActions, loadStreakDays } from '../utils/storage';
+import { getErrorMessage } from '../utils/errorMessage';
 
 interface ImpactPageProps {
   context: EnvironmentalContext;
@@ -56,22 +59,24 @@ export const ImpactPage: React.FC<ImpactPageProps> = ({ context, profile }) => {
   const [selectedActions, setSelectedActions] = useState<string[]>(loadLoggedActions());
   const [summary, setSummary] = useState<ImpactSummary | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    recalcImpact(selectedActions);
-  }, []);
-
-  const recalcImpact = async (actions: string[]) => {
+  const recalcImpact = useCallback(async (actions: string[]) => {
     setLoading(true);
+    setError(null);
     try {
       const data = await calculateImpactSummary(actions, loadStreakDays());
       setSummary(data);
-    } catch (err) {
-      console.warn('Failed to calculate impact:', err);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Could not recalculate impact metrics.'));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    recalcImpact(selectedActions);
+  }, [recalcImpact, selectedActions]);
 
   const toggleAction = (id: string) => {
     const updated = selectedActions.includes(id)
@@ -80,57 +85,82 @@ export const ImpactPage: React.FC<ImpactPageProps> = ({ context, profile }) => {
 
     setSelectedActions(updated);
     saveLoggedActions(updated);
-    recalcImpact(updated);
   };
+
+  const vulnerableCount =
+    profile.householdMembers.children +
+    profile.householdMembers.elderly +
+    profile.householdMembers.sensitive;
 
   return (
     <div className="space-y-8">
       {/* Header */}
       <div>
         <div className="flex items-center space-x-2">
-          <TrendingDown className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+          <TrendingDown className="h-6 w-6 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
             Your Choice → Your Impact
           </h1>
         </div>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Calculate estimated emission savings and personal exposure reduction from your everyday actions in <strong>{context.location.name}</strong>.
+          Calculate estimated emission savings and personal exposure reduction in <strong>{context.location.name}</strong> for your <strong>{profile.commuteMethod}</strong> routine
+          {vulnerableCount > 0 ? ` (${vulnerableCount} sensitive household member${vulnerableCount > 1 ? 's' : ''})` : ''}.
         </p>
       </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 flex items-center justify-between gap-3 text-xs text-rose-800 dark:text-rose-200"
+        >
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" aria-hidden="true" />
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => recalcImpact(selectedActions)}
+            className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold shrink-0"
+          >
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Retry</span>
+          </button>
+        </div>
+      )}
 
       {/* Impact Metric Cards */}
       {summary && (
         <div className={`grid grid-cols-1 sm:grid-cols-3 gap-4 transition-opacity ${loading ? 'opacity-70' : 'opacity-100'}`}>
           <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-lg space-y-1">
-            <span className="text-xs font-semibold uppercase tracking-wider opacity-85">
+            <span className="text-xs font-semibold uppercase tracking-wider opacity-90">
               Estimated CO₂ Prevented
             </span>
             <div className="text-4xl font-black">{summary.totalCo2SavedKg} kg</div>
-            <p className="text-[11px] opacity-80 pt-1">
+            <p className="text-[11px] opacity-90 pt-1">
               Based on CPCB & ICCT standard passenger vehicle emission factors
             </p>
           </div>
 
           <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
               Solo Car Trips Avoided
             </span>
             <div className="text-4xl font-black text-slate-900 dark:text-white">
               {summary.totalTripsAvoided}
             </div>
-            <p className="text-[11px] text-slate-400 pt-1">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
               Fewer vehicles in urban street corridors lowers localized NOx
             </p>
           </div>
 
           <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
               Personal Exposure Cut
             </span>
             <div className="text-4xl font-black text-emerald-600 dark:text-emerald-400">
               ~{summary.estimatedExposureCutPercent}%
             </div>
-            <p className="text-[11px] text-slate-400 pt-1">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
               Estimated respiratory particulate defense achieved by your habits
             </p>
           </div>
@@ -140,9 +170,9 @@ export const ImpactPage: React.FC<ImpactPageProps> = ({ context, profile }) => {
       {/* Select Actions Interactive Grid */}
       <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-4">
         <div>
-          <h3 className="text-base font-bold text-slate-900 dark:text-white">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white">
             Select Your Cleaner Choices (Active This Week)
-          </h3>
+          </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Click to toggle choices. Your impact updates in real time.
           </p>

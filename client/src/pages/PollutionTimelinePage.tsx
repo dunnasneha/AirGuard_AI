@@ -15,10 +15,24 @@ interface PollutionTimelinePageProps {
   context: EnvironmentalContext;
 }
 
+interface ChartPoint {
+  time: string;
+  hour: number;
+  aqi: number;
+  pm2_5: number;
+  pm10: number;
+}
+
+interface ChartTooltipProps {
+  active?: boolean;
+  label?: string;
+  payload?: Array<{ payload: ChartPoint }>;
+}
+
 export const PollutionTimelinePage: React.FC<PollutionTimelinePageProps> = ({ context }) => {
   const { hourly, windows, location } = context;
 
-  const chartData = hourly.map((item) => ({
+  const chartData: ChartPoint[] = hourly.map((item) => ({
     time: item.time,
     hour: item.hour,
     aqi: item.aqi,
@@ -26,8 +40,8 @@ export const PollutionTimelinePage: React.FC<PollutionTimelinePageProps> = ({ co
     pm10: item.pm10,
   }));
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
+  const CustomTooltip: React.FC<ChartTooltipProps> = ({ active, payload, label }) => {
+    if (active && payload && payload.length > 0) {
       const data = payload[0].payload;
       return (
         <div className="bg-slate-900 text-white p-3 rounded-xl border border-slate-700 shadow-xl text-xs space-y-1">
@@ -97,9 +111,9 @@ export const PollutionTimelinePage: React.FC<PollutionTimelinePageProps> = ({ co
       <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">
               Hourly PM2.5 & AQI Dynamics
-            </h3>
+            </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Captures thermal inversion dips during afternoon solar heating
             </p>
@@ -184,11 +198,11 @@ export const PollutionTimelinePage: React.FC<PollutionTimelinePageProps> = ({ co
         </table>
       </div>
 
-      {/* Screen Reader & Accessible Hourly Breakdown Table */}
+      {/* Diurnal Periods Summary */}
       <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-3">
-        <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+        <h2 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
           Diurnal Periods Summary (Morning, Afternoon, Evening, Night)
-        </h4>
+        </h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           {[
             {

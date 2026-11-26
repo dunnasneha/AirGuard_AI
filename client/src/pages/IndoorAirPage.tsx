@@ -42,7 +42,7 @@ export const IndoorAirPage: React.FC<IndoorAirPageProps> = ({
       {/* Header */}
       <div>
         <div className="flex items-center space-x-2">
-          <Wind className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+          <Wind className="h-6 w-6 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
             Indoor Air Quality Hub
           </h1>
@@ -61,18 +61,24 @@ export const IndoorAirPage: React.FC<IndoorAirPageProps> = ({
         } space-y-2`}
       >
         <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-          <Clock className="h-4 w-4 text-emerald-600" />
+          <Clock className="h-4 w-4 text-emerald-600" aria-hidden="true" />
           <span>Dynamic Ventilation Directive</span>
         </div>
-        <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">
+        <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
           {isHighOutdoor
             ? 'Limit Window Opening — Prioritize Mechanical HEPA Filtration'
             : 'Good Conditions for Fresh Air Cross-Ventilation'}
-        </h3>
+        </h2>
         <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
           {isHighOutdoor
             ? `Outdoor PM2.5 is currently elevated (${context.airQuality.pm2_5} µg/m³). Keep perimeter windows and balconies closed during morning inversion (${context.windows.peakPollutionWindow.label}). If fresh air exchange is needed, open windows briefly only between ${context.windows.bestOutdoorWindow.label}.`
             : `Outdoor particulate levels are low. Open windows for 20-30 minutes during midday to flush out carbon dioxide and indoor VOCs.`}
+        </p>
+        <p className="text-[11px] font-medium text-slate-700 dark:text-slate-300">
+          Household setup ({profile.indoorEnvironment.join(', ') || 'Standard indoor space'}):{' '}
+          {profile.indoorEnvironment.includes('Air purifier')
+            ? 'Run your HEPA purifier continuously during peak smog hours and keep exterior doors sealed.'
+            : 'Since no HEPA purifier is listed in your profile, prioritize wet mopping, exhaust fans during cooking, and tight perimeter window seals.'}
         </p>
       </div>
 
@@ -81,11 +87,11 @@ export const IndoorAirPage: React.FC<IndoorAirPageProps> = ({
         {/* Cooking Ventilation */}
         <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-3">
           <div className="h-10 w-10 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-950 dark:text-orange-400 flex items-center justify-center">
-            <UtensilsCrossed className="h-5 w-5" />
+            <UtensilsCrossed className="h-5 w-5" aria-hidden="true" />
           </div>
-          <h3 className="font-bold text-base text-slate-900 dark:text-white">
+          <h2 className="font-bold text-base text-slate-900 dark:text-white">
             Cooking Smoke Isolation
-          </h3>
+          </h2>
           <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
             Oil frying and tadka seasoning generate ultrafine PM2.5 spikes up to 400 µg/m³ inside the home. Always operate the kitchen chimney / exhaust fan on high and close interior kitchen doors.
           </p>
@@ -94,11 +100,11 @@ export const IndoorAirPage: React.FC<IndoorAirPageProps> = ({
         {/* Avoid Combustion */}
         <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-3">
           <div className="h-10 w-10 rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950 dark:text-rose-400 flex items-center justify-center">
-            <Flame className="h-5 w-5" />
+            <Flame className="h-5 w-5" aria-hidden="true" />
           </div>
-          <h3 className="font-bold text-base text-slate-900 dark:text-white">
+          <h2 className="font-bold text-base text-slate-900 dark:text-white">
             Avoid Unnecessary Combustion
-          </h3>
+          </h2>
           <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
             Eliminate indoor incense sticks (agarbatti), mosquito coils, scented paraffin candles, and unvented heaters. These directly release benzene, formaldehyde, and respirable black carbon.
           </p>
@@ -107,11 +113,11 @@ export const IndoorAirPage: React.FC<IndoorAirPageProps> = ({
         {/* Dust Control */}
         <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-3">
           <div className="h-10 w-10 rounded-xl bg-teal-50 text-teal-600 dark:bg-teal-950 dark:text-teal-400 flex items-center justify-center">
-            <Sparkles className="h-5 w-5" />
+            <Sparkles className="h-5 w-5" aria-hidden="true" />
           </div>
-          <h3 className="font-bold text-base text-slate-900 dark:text-white">
+          <h2 className="font-bold text-base text-slate-900 dark:text-white">
             Wet Mopping & Dust Trap
-          </h3>
+          </h2>
           <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
             Dry sweeping with brooms kicks settled toxic heavy metal particles back into the breathing zone. Use a damp microfiber mop and place rubber door seals at entry doorways.
           </p>
@@ -130,9 +136,9 @@ export const IndoorAirPage: React.FC<IndoorAirPageProps> = ({
       <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
           <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
               Quick Indoor Safety Checklist
-            </h3>
+            </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Check off daily habits to protect your indoor breathing zone and boost your AirWise Score.
             </p>

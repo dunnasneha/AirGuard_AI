@@ -5,8 +5,8 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
-import { EnvironmentalContext, ImpactSummary, UserProfile } from '../types';
-import { calculateImpactSummary, fetchCommunityStats } from '../services/api';
+import { CommunityStats, EnvironmentalContext, ImpactSummary, UserProfile } from '../types';
+import { calculateImpactSummary, DEFAULT_COMMUNITY_STATS, fetchCommunityStats } from '../services/api';
 import { loadLoggedActions, loadIndoorChecklist, loadStreakDays } from '../utils/storage';
 
 interface WeeklyProgressPageProps {
@@ -21,7 +21,7 @@ export const WeeklyProgressPage: React.FC<WeeklyProgressPageProps> = ({
   onNavigateToTab,
 }) => {
   const [impact, setImpact] = useState<ImpactSummary | null>(null);
-  const [community, setCommunity] = useState<any>(null);
+  const [community, setCommunity] = useState<CommunityStats>(DEFAULT_COMMUNITY_STATS);
 
   useEffect(() => {
     const actions = loadLoggedActions();
@@ -60,12 +60,12 @@ export const WeeklyProgressPage: React.FC<WeeklyProgressPageProps> = ({
             </div>
             <div>
               <div className="inline-flex items-center space-x-1 px-3 py-1 rounded-full bg-white/20 text-xs font-bold mb-1">
-                <Flame className="h-3.5 w-3.5 text-amber-300" />
+                <Flame className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />
                 <span>{impact?.streakDays ?? loadStreakDays()}-Day Habit Streak</span>
               </div>
               <h2 className="text-xl font-bold">Excellent AirWise Citizen</h2>
               <p className="text-xs text-emerald-100 mt-1">
-                Your actions contributed to reducing localized urban smog in {context.location.name}.
+                Tailored for your <strong>{profile.lifestyle}</strong> ({profile.commuteMethod}) routine in {context.location.name}.
               </p>
             </div>
           </div>
@@ -90,10 +90,10 @@ export const WeeklyProgressPage: React.FC<WeeklyProgressPageProps> = ({
 
       {/* How to Improve Your Score */}
       <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-4">
-        <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
-          <TrendingUp className="h-4 w-4 text-emerald-600" />
+        <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+          <TrendingUp className="h-4 w-4 text-emerald-600" aria-hidden="true" />
           <span>How to Improve Your AirWise Score This Week</span>
-        </h3>
+        </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[
@@ -138,8 +138,9 @@ export const WeeklyProgressPage: React.FC<WeeklyProgressPageProps> = ({
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">{item.desc}</p>
               </div>
               <button
+                type="button"
                 onClick={() => onNavigateToTab(item.tab)}
-                className="text-xs text-emerald-600 font-bold hover:underline shrink-0 ml-3"
+                className="text-xs text-emerald-700 dark:text-emerald-400 font-bold hover:underline shrink-0 ml-3"
               >
                 Go →
               </button>
@@ -152,48 +153,48 @@ export const WeeklyProgressPage: React.FC<WeeklyProgressPageProps> = ({
       <div className="p-6 sm:p-8 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
           <div className="flex items-center space-x-2">
-            <Users className="h-5 w-5 text-emerald-600" />
-            <h3 className="font-bold text-base text-slate-900 dark:text-white">
-              Community Air Actions
-            </h3>
+            <Users className="h-5 w-5 text-emerald-600" aria-hidden="true" />
+            <h2 className="font-bold text-base text-slate-900 dark:text-white">
+              {community.title}
+            </h2>
           </div>
-          <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+          <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
             Demo Community Activity
           </span>
         </div>
 
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-slate-600 dark:text-slate-400">
           Collective action by urban households in your region choosing cleaner transit and indoor defense.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-1">
-            <span className="text-xs font-semibold text-slate-400">Cleaner Commute Choices</span>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Cleaner Commute Choices</span>
             <div className="text-2xl font-black text-slate-900 dark:text-white">
-              {community?.metrics?.cleanerChoices?.toLocaleString() || '1,240'}
+              {community.metrics.cleanerChoices.toLocaleString()}
             </div>
-            <p className="text-[10px] text-slate-500">Metro, bus, cycling & carpool sessions</p>
+            <p className="text-[10px] text-slate-600 dark:text-slate-400">Metro, bus, cycling & carpool sessions</p>
           </div>
 
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-1">
-            <span className="text-xs font-semibold text-slate-400">Solo Car Trips Avoided</span>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Solo Car Trips Avoided</span>
             <div className="text-2xl font-black text-slate-900 dark:text-white">
-              {community?.metrics?.carTripsAvoided?.toLocaleString() || '680'}
+              {community.metrics.carTripsAvoided.toLocaleString()}
             </div>
-            <p className="text-[10px] text-slate-500">Directly reducing street canyon idle</p>
+            <p className="text-[10px] text-slate-600 dark:text-slate-400">Directly reducing street canyon idle</p>
           </div>
 
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-1">
-            <span className="text-xs font-semibold text-slate-400">Indoor Checklists Completed</span>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Indoor Checklists Completed</span>
             <div className="text-2xl font-black text-slate-900 dark:text-white">
-              {community?.metrics?.indoorChecklistsCompleted?.toLocaleString() || '430'}
+              {community.metrics.indoorChecklistsCompleted.toLocaleString()}
             </div>
-            <p className="text-[10px] text-slate-500">Certified safe indoor family zones</p>
+            <p className="text-[10px] text-slate-600 dark:text-slate-400">Certified safe indoor family zones</p>
           </div>
         </div>
 
-        <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-200 dark:border-slate-800">
-          Notice: Community numbers reflect sample anonymous activity benchmarks to encourage collective neighborhood smog reduction.
+        <p className="text-[11px] text-slate-600 dark:text-slate-400 pt-2 border-t border-slate-200 dark:border-slate-800">
+          {community.notice}
         </p>
       </div>
     </div>

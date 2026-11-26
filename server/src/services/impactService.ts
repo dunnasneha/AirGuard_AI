@@ -1,22 +1,23 @@
-export interface ActionImpactEstimate {
-  actionId: string;
-  actionTitle: string;
-  category: 'commute' | 'energy' | 'indoor' | 'lifestyle';
-  estimatedCo2SavedKg: number;
-  tripsAvoided: number;
-  exposureReductionPercent: number;
-  explanation: string;
-}
+import {
+  ActionImpactEstimate,
+  CommunityStats,
+  ImpactSummary,
+} from '../types/index.js';
 
-export interface ImpactSummary {
-  totalCo2SavedKg: number;
-  totalTripsAvoided: number;
-  estimatedExposureCutPercent: number;
-  airWiseScore: number;
-  streakDays: number;
-  actionsCompleted: number;
-  assumptions: string[];
-}
+export type { ActionImpactEstimate, ImpactSummary, CommunityStats };
+
+export const COMMUNITY_DEMO_STATS: CommunityStats = {
+  title: 'Community Air Actions',
+  isDemoSample: true,
+  notice: 'Demo community activity — collective urban smog reduction stats from community participants.',
+  metrics: {
+    cleanerChoices: 1240,
+    carTripsAvoided: 680,
+    indoorChecklistsCompleted: 430,
+    estimatedCo2PreventedKg: 980,
+    activeParticipatingHouseholds: 312,
+  },
+};
 
 // Standard urban transport emission factors (g CO2 per passenger km)
 // Reference: Central Pollution Control Board (CPCB) & International Council on Clean Transportation (ICCT)
@@ -145,9 +146,10 @@ export function computeTotalImpact(actionKeys: string[], streakDays: number = 4)
   }
 
   // Calculate score (0 to 100) based purely on verified user actions and streak
+  const safeStreakDays = Number.isFinite(streakDays) ? Math.max(0, Math.floor(streakDays)) : 0;
   const baseScore = 50;
   const actionBonus = Math.min(35, actionKeys.length * 7);
-  const streakBonus = Math.min(15, streakDays * 3);
+  const streakBonus = Math.min(15, safeStreakDays * 3);
   const airWiseScore = Math.min(100, baseScore + actionBonus + streakBonus);
 
   const avgExposureReduction = actionKeys.length > 0 

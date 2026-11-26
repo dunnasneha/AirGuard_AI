@@ -85,7 +85,8 @@ Google Gemini is integrated directly into the product workflow through a secure,
                                              ▼
                           ┌─────────────────────────────────────┐
                           │       Backend (Express + TS)        │
-                          │   - Rate Limiter & Sanitize Input   │
+                          │   - Security Headers & Rate Limiter │
+                          │   - Bounded TTL Cache (Open-Meteo)  │
                           │   - NAQI / EPA Composite Calculator │
                           │   - Impact Math (CPCB / ICCT)       │
                           └──────────┬──────────────────┬───────┘
@@ -97,6 +98,19 @@ Google Gemini is integrated directly into the product workflow through a secure,
      │  (PM2.5, PM10, O3)  │  │ (Temp, Wind, RH) │ │  (Global Search) │ │ (Backend API Key)│
      └─────────────────────┘  └──────────────────┘ └──────────────────┘ └──────────────────┘
 ```
+
+### API Endpoints Contract
+
+| Method & Path | Purpose | Validation & Guardrails |
+| :--- | :--- | :--- |
+| `GET /api/health` | Service liveness & Gemini key readiness (`aiReady`) | Public health probe |
+| `GET /api/cities?q=` | Global city search & Indian metro presets | Query trimmed & capped at 100 chars; 15-min TTL cache |
+| `GET /api/environmental-data` | Live AQI, weather, 24h curve & pollution windows | `lat` (`-90..90`), `lon` (`-180..180`); 5-min TTL cache |
+| `POST /api/ai/daily-plan` | 6-phase GenAI daily schedule + `generatedBy` source | Rate-limited (40/min), schema validation & rule fallback |
+| `POST /api/ai/chat` | Context-grounded assistant + `contextUsed` provenance | Rate-limited, history sanitized (max 10 turns) |
+| `POST /api/ai/comparator` | Side-by-side low-emission choice evaluation | Rate-limited, strict JSON field normalization |
+| `POST /api/impact/calculate` | Transparent CO₂, trip & exposure calculations | Clamped streak (`0..365`), capped action array (`<=50`) |
+| `GET /api/community/stats` | Transparently labeled demo community benchmarks | Read-only static demo aggregate |
 
 ---
 
@@ -190,39 +204,37 @@ npm run test:server
 npm run test:client
 ```
 
-All unit tests validate:
-- AQI breakpoint mathematics & decimal concentration classification
-- Transparent transport emissions and CO2 savings
-- Input validation, sanitization, and malformed payload rejection
-- Fallback resilience for AI action plan, chat, and comparator services
-- Frontend render integrity and accessibility
+All unit and integration tests validate:
+- AQI breakpoint mathematics, boundary clamping (`NaN`, negative, `>500`), timezone rollover, and decimal classification
+- Transparent transport emissions, all 7 action definitions, score ceiling, and CO₂ savings
+- Bounded `TtlCache` eviction/expiry and full Express HTTP API routes (`400`/`429` enforcement & headers)
+- Input validation, chat history sanitization, malformed payload rejection, and mocked Gemini SDK + fallback resilience
+- Frontend render integrity, XSS-safe markdown rendering, ARIA states, and error recovery
 
 ---
 
 ## Deployment
 
-### Frontend (Vercel / Netlify)
-1. Build the client: `npm run build:client`
-2. Deploy the `client/dist` directory.
-3. Configure the environment variable: `VITE_API_URL=https://your-backend.onrender.com/api`.
+### Full-Stack (Recommended Single-Origin: Render / Railway / Cloud Run)
+1. Build client and server: `npm run build`
+2. Start server: `npm start` (serves both `client/dist` and `/api/*` on the same origin)
+3. Configure environment variable: `GEMINI_API_KEY=...`
 
-### Backend (Render / Railway / Fly.io)
-1. Set the root directory to `server/`.
-2. Build command: `npm install && npm run build`.
-3. Start command: `node dist/index.js`.
-4. Configure environment variable: `GEMINI_API_KEY=...`
-5. The backend automatically serves the production frontend build if co-located.
-6. Health check path: `GET /api/health` returning `{"status": "ok"}`.
+### Split Deployment: Frontend (Netlify) + Backend (Render / Railway)
+Because `client/dist` is static-only, `/api/*` requests on Netlify require connecting a live backend:
+1. Deploy `server/` on Render/Railway (`Build: npm install && npm run build`, `Start: node dist/index.js`, `Env: GEMINI_API_KEY=...`, `Health: /api/health`).
+2. Deploy via root `netlify.toml` (`publish = "client/dist"`).
+3. Either set `VITE_API_URL=https://<your-backend>.onrender.com/api` in Netlify Environment Variables, **or** uncomment the `/api/*` proxy redirect in `netlify.toml`.
 
 ---
 
 ## Security & Best Practices
 
 - **Zero Client-Side Secrets**: Gemini API keys reside exclusively in backend environment variables.
-- **Input Validation**: Coordinate boundaries (-90 to 90, -180 to 180) and query strings are validated and sanitized.
-- **In-Memory Rate Limiting**: AI endpoints are rate-limited to 40 requests/min per IP to prevent quota exhaustion and DoS attacks.
+- **HTTP Hardening**: Disables `X-Powered-By`, sets `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Permissions-Policy`, and hides internal error stack details in `500` responses.
+- **Input Validation**: Coordinate boundaries (`-90..90`, `-180..180`), chat history arrays, and query strings are validated and sanitized.
+- **In-Memory Rate Limiting & Bounded Caching**: AI endpoints are rate-limited to 40 requests/min per IP, and Open-Meteo responses use bounded `TtlCache` (`maxEntries = 200`) to prevent unbounded memory growth.
 - **Payload Limits**: Express JSON parser enforces a strict 500 KB limit.
-- **CORS Restricted**: Controlled origin handling prevents cross-site script abuse.
 - **Zero Sensitive Data Stored**: User profile preferences are kept exclusively in client-side `localStorage`.
 
 ---

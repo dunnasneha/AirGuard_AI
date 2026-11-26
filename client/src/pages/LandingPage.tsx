@@ -54,14 +54,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {/* CTAs */}
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
           <button
+            type="button"
             onClick={onStart}
             className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-2xl shadow-lg shadow-emerald-500/25 flex items-center justify-center space-x-2 text-base transition-all group"
           >
             <span>Check My Air</span>
-            <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" aria-hidden="true" />
           </button>
 
           <button
+            type="button"
             onClick={onExplore}
             className="w-full sm:w-auto px-8 py-4 rounded-2xl font-bold border border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 transition-colors shadow-sm"
           >
@@ -83,13 +85,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                   <div className="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2">
                     <span>{context.airQuality.category} Air Quality</span>
-                    <span className="text-xs font-normal text-slate-400">
+                    <span className="text-xs font-normal text-slate-600 dark:text-slate-400">
                       • PM2.5: {context.airQuality.pm2_5} µg/m³
                     </span>
                   </div>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={onStart}
                 className="px-4 py-2 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900 rounded-xl text-xs font-bold transition-colors"
               >
@@ -245,6 +248,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <div className="pt-4">
               <button
+                type="button"
                 onClick={onStart}
                 className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-lg shadow-emerald-500/20"
               >

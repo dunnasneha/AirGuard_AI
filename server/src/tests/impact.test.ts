@@ -6,37 +6,59 @@ import {
 } from '../services/impactService.js';
 
 describe('Impact Calculation & Scoring Unit Tests', () => {
-  it('correctly calculates single action emission savings for public transit', () => {
-    const impact = calculateSingleActionImpact('public_transport');
-    expect(impact.category).toBe('commute');
-    expect(impact.tripsAvoided).toBe(1);
-    expect(impact.estimatedCo2SavedKg).toBeGreaterThan(1.0);
-    expect(impact.explanation.toLowerCase()).toContain('car');
+  it('calculates expected values across all 7 defined action IDs and unknown fallback', () => {
+    const definedIds = [
+      'public_transport',
+      'cycling_walking',
+      'carpool',
+      'work_from_home',
+      'combine_errands',
+      'indoor_purifier_timed',
+      'sealed_cooking_vent',
+    ];
+
+    for (const id of definedIds) {
+      const impact = calculateSingleActionImpact(id);
+      expect(impact.actionId).toBe(id);
+      expect(impact.estimatedCo2SavedKg).toBeGreaterThan(0);
+      expect(impact.exposureReductionPercent).toBeGreaterThan(0);
+      expect(impact.explanation.length).toBeGreaterThan(10);
+    }
+
+    const unknown = calculateSingleActionImpact('custom_green_habit');
+    expect(unknown.category).toBe('lifestyle');
+    expect(unknown.estimatedCo2SavedKg).toBe(0.5);
+    expect(unknown.tripsAvoided).toBe(1);
+    expect(EMISSION_FACTORS.PETROL_CAR_SOLO).toBeGreaterThan(EMISSION_FACTORS.METRO_RAIL);
   });
 
-  it('correctly calculates work-from-home emission impact', () => {
-    const impact = calculateSingleActionImpact('work_from_home');
-    expect(impact.tripsAvoided).toBe(2);
-    expect(impact.exposureReductionPercent).toBeGreaterThanOrEqual(50);
-  });
+  it('computes cumulative impact and respects score ceiling of 100', () => {
+    const actions = [
+      'public_transport',
+      'cycling_walking',
+      'carpool',
+      'work_from_home',
+      'combine_errands',
+      'indoor_purifier_timed',
+      'sealed_cooking_vent',
+    ];
+    const summary = computeTotalImpact(actions, 30);
 
-  it('computes cumulative impact and scores properly', () => {
-    const actions = ['public_transport', 'work_from_home', 'indoor_purifier_timed'];
-    const summary = computeTotalImpact(actions, 5);
-
-    expect(summary.actionsCompleted).toBe(3);
-    expect(summary.totalTripsAvoided).toBe(3);
-    expect(summary.totalCo2SavedKg).toBeGreaterThan(3.0);
-    expect(summary.streakDays).toBe(5);
-    expect(summary.airWiseScore).toBeGreaterThanOrEqual(75);
+    expect(summary.actionsCompleted).toBe(7);
+    expect(summary.totalTripsAvoided).toBe(6);
+    expect(summary.airWiseScore).toBe(100);
+    expect(summary.estimatedExposureCutPercent).toBeLessThanOrEqual(85);
     expect(summary.assumptions.length).toBeGreaterThan(0);
   });
 
-  it('handles empty actions list without crashing', () => {
-    const summary = computeTotalImpact([], 0);
-    expect(summary.actionsCompleted).toBe(0);
-    expect(summary.totalCo2SavedKg).toBe(0);
-    expect(summary.totalTripsAvoided).toBe(0);
-    expect(summary.airWiseScore).toBe(50); // Baseline score
+  it('clamps negative streaks safely and handles empty actions cleanly', () => {
+    const emptySummary = computeTotalImpact([], 0);
+    expect(emptySummary.actionsCompleted).toBe(0);
+    expect(emptySummary.totalCo2SavedKg).toBe(0);
+    expect(emptySummary.totalTripsAvoided).toBe(0);
+    expect(emptySummary.airWiseScore).toBe(50);
+
+    const negativeStreak = computeTotalImpact([], -5);
+    expect(negativeStreak.airWiseScore).toBe(50);
   });
 });

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { AIDailyPlan, EnvironmentalContext, PlanAction, UserProfile } from '../types';
 import { fetchAIDailyPlan } from '../services/api';
+import { getErrorMessage } from '../utils/errorMessage';
 
 interface AIDailyPlanPageProps {
   context: EnvironmentalContext;
@@ -39,8 +40,8 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
     try {
       const generated = await fetchAIDailyPlan(profile, context);
       onPlanGenerated(generated);
-    } catch (err: any) {
-      setError(err.message || 'Failed to generate plan. Please try again.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to generate plan. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -114,20 +115,66 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
         </button>
       </div>
 
+      {/* Grounding Strip: Measured Environmental & Household Inputs */}
+      <div
+        aria-label="Live environmental and profile inputs used for plan generation"
+        className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs"
+      >
+        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+            Measured Air Quality
+          </span>
+          <span className="font-extrabold text-slate-900 dark:text-white">
+            AQI {context.airQuality.aqi} ({context.airQuality.category})
+          </span>
+        </div>
+        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+            Particulates
+          </span>
+          <span className="font-extrabold text-slate-900 dark:text-white">
+            PM2.5 {context.airQuality.pm2_5} µg/m³ • {context.airQuality.dominantPollutant}
+          </span>
+        </div>
+        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+            Weather & Dispersion
+          </span>
+          <span className="font-extrabold text-slate-900 dark:text-white">
+            {context.weather.temperature}°C • Wind {context.weather.windSpeed} km/h
+          </span>
+        </div>
+        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+            Household & Commute
+          </span>
+          <span className="font-extrabold text-slate-900 dark:text-white">
+            {profile.lifestyle} • {profile.commuteMethod}
+          </span>
+        </div>
+      </div>
+
       {error && (
-        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 dark:bg-rose-950 dark:border-rose-900 dark:text-rose-200 text-xs flex items-center space-x-2">
-          <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 dark:bg-rose-950 dark:border-rose-900 dark:text-rose-200 text-xs flex items-center space-x-2"
+        >
+          <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" aria-hidden="true" />
           <span>{error}</span>
         </div>
       )}
 
       {/* Plan Content */}
+      <div aria-live="polite">
       {loading ? (
-        <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
+        <div
+          role="status"
+          className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800"
+        >
           <div className="w-12 h-12 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin mx-auto" />
-          <h3 className="font-bold text-base text-slate-800 dark:text-white">
+          <h2 className="font-bold text-base text-slate-800 dark:text-white">
             Connecting Environmental Context with Gemini...
-          </h3>
+          </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
             Analyzing PM2.5 concentrations, thermal inversion windows, and your {profile.commuteMethod.toLowerCase()} commute to generate high-impact, low-emission actions.
           </p>
@@ -138,14 +185,14 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
           <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center space-x-1.5">
-                <Sparkles className="h-4 w-4" />
+                <Sparkles className="h-4 w-4" aria-hidden="true" />
                 <span>Today's AirWise Plan Overview</span>
               </span>
               <div className="flex items-center space-x-2">
                 <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                   Model: {plan.generatedBy === 'gemini' ? 'Google Gemini' : 'Adaptive Rule Engine'}
                 </span>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400">
                   {new Date(plan.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
@@ -162,9 +209,9 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
 
           {/* Structured Actions: 6 Periods */}
           <div>
-            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-4">
+            <h2 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-4">
               Schedule & Actions (What, Why, Impact, What Next)
-            </h3>
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {(plan.actions || []).map((act: PlanAction) => {
                 const Icon = getTimeIcon(act.time);
@@ -195,7 +242,7 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
 
                       {/* WHAT */}
                       <div className="space-y-1">
-                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                           Action (What):
                         </div>
                         <p className="text-xs font-bold text-slate-900 dark:text-white leading-snug">
@@ -205,7 +252,7 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
 
                       {/* WHY */}
                       <div className="space-y-1 mt-2.5">
-                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                           Why It Matters:
                         </div>
                         <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -215,8 +262,8 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
 
                       {/* IMPACT */}
                       <div className="space-y-1 mt-2.5">
-                        <div className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center space-x-1">
-                          <Zap className="h-3 w-3" />
+                        <div className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center space-x-1">
+                          <Zap className="h-3 w-3" aria-hidden="true" />
                           <span>Pollution Impact:</span>
                         </div>
                         <p className="text-xs font-medium text-emerald-800 dark:text-emerald-300">
@@ -226,7 +273,7 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
                     </div>
 
                     {/* WHAT TO DO NEXT */}
-                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 flex items-center space-x-1.5">
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 flex items-center space-x-1.5">
                       <span className="font-bold text-slate-700 dark:text-slate-300">Next Step:</span>
                       <span>{act.whatNext}</span>
                     </div>
@@ -239,13 +286,13 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
           {/* Structured Guidance Blocks: Indoor, Commute, Family */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 space-y-2">
-              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white">
+              <h3 className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white">
                 Indoor Air Quality
-              </h4>
+              </h3>
               <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
                 {(plan.indoor_guidance || []).map((item, idx) => (
                   <li key={idx} className="flex items-start space-x-2">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" aria-hidden="true" />
                     <span>{item}</span>
                   </li>
                 ))}
@@ -253,13 +300,13 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
             </div>
 
             <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 space-y-2">
-              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white">
+              <h3 className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white">
                 Low-Emission Commute
-              </h4>
+              </h3>
               <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
                 {(plan.commute_guidance || []).map((item, idx) => (
                   <li key={idx} className="flex items-start space-x-2">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-teal-500 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="h-3.5 w-3.5 text-teal-500 shrink-0 mt-0.5" aria-hidden="true" />
                     <span>{item}</span>
                   </li>
                 ))}
@@ -267,9 +314,9 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
             </div>
 
             <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 space-y-2">
-              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white">
+              <h3 className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white">
                 Family & Sensitive Members
-              </h4>
+              </h3>
               <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
                 {(plan.family_guidance || []).map((item, idx) => (
                   <li key={idx} className="flex items-start space-x-2">
@@ -308,16 +355,17 @@ export const AIDailyPlanPage: React.FC<AIDailyPlanPageProps> = ({
         /* Empty State */
         <div className="p-12 text-center space-y-4 bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
           <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 flex items-center justify-center mx-auto">
-            <Sparkles className="h-6 w-6" />
+            <Sparkles className="h-6 w-6" aria-hidden="true" />
           </div>
-          <h3 className="font-bold text-base text-slate-800 dark:text-white">
+          <h2 className="font-bold text-base text-slate-800 dark:text-white">
             Ready to Generate Your Custom Plan
-          </h3>
+          </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
             Click "Generate My AI Action Plan" above to create an hour-by-hour breakdown combining live air quality with your family's daily routine.
           </p>
         </div>
       )}
+      </div>
     </div>
   );
 };

@@ -15,6 +15,7 @@ import {
   Info,
 } from 'lucide-react';
 import { EnvironmentalContext, UserProfile } from '../types';
+import { getAqiCardTheme } from '../utils/aqiTheme';
 
 interface DashboardPageProps {
   context: EnvironmentalContext;
@@ -33,60 +34,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 }) => {
   const { airQuality, weather, windows, location, lastUpdated } = context;
 
-  const getAqiColorTheme = (cat: string) => {
-    switch (cat) {
-      case 'Good':
-        return {
-          bg: 'bg-emerald-50 dark:bg-emerald-950/40',
-          border: 'border-emerald-200 dark:border-emerald-900',
-          badge: 'bg-emerald-500 text-white',
-          text: 'text-emerald-700 dark:text-emerald-300',
-          gradient: 'from-emerald-500 to-teal-600',
-        };
-      case 'Moderate':
-        return {
-          bg: 'bg-amber-50 dark:bg-amber-950/40',
-          border: 'border-amber-200 dark:border-amber-900',
-          badge: 'bg-amber-500 text-white',
-          text: 'text-amber-700 dark:text-amber-300',
-          gradient: 'from-amber-500 to-orange-500',
-        };
-      case 'Poor':
-        return {
-          bg: 'bg-orange-50 dark:bg-orange-950/40',
-          border: 'border-orange-200 dark:border-orange-900',
-          badge: 'bg-orange-500 text-white',
-          text: 'text-orange-700 dark:text-orange-300',
-          gradient: 'from-orange-500 to-red-500',
-        };
-      case 'Very Poor':
-        return {
-          bg: 'bg-rose-50 dark:bg-rose-950/40',
-          border: 'border-rose-200 dark:border-rose-900',
-          badge: 'bg-rose-600 text-white',
-          text: 'text-rose-700 dark:text-rose-300',
-          gradient: 'from-rose-600 to-red-700',
-        };
-      case 'Severe':
-        return {
-          bg: 'bg-red-100 dark:bg-red-950/60',
-          border: 'border-red-300 dark:border-red-800',
-          badge: 'bg-red-900 text-white',
-          text: 'text-red-900 dark:text-red-300',
-          gradient: 'from-red-800 to-red-950',
-        };
-      default:
-        return {
-          bg: 'bg-slate-50 dark:bg-slate-900',
-          border: 'border-slate-200 dark:border-slate-800',
-          badge: 'bg-slate-600 text-white',
-          text: 'text-slate-700 dark:text-slate-300',
-          gradient: 'from-slate-600 to-slate-800',
-        };
-    }
-  };
-
-  const theme = getAqiColorTheme(airQuality.category);
+  const theme = getAqiCardTheme(airQuality.category);
 
   return (
     <div className="space-y-8">
@@ -109,11 +57,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         <button
+          type="button"
           onClick={onRefresh}
           disabled={isRefreshing}
           className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors shadow-sm self-start sm:self-auto"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-emerald-600' : ''}`} />
+          <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-emerald-600' : ''}`} aria-hidden="true" />
           <span>{isRefreshing ? 'Refreshing...' : 'Refresh Data'}</span>
         </button>
       </div>
@@ -207,9 +156,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
       {/* Atmospheric & Pollutant Metric Cards */}
       <div>
-        <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-3">
+        <h2 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-3">
           Environmental Parameters (Live Sensors)
-        </h3>
+        </h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
             {
@@ -218,7 +167,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               unit: 'µg/m³',
               desc: 'Penetrates deep into lungs',
               icon: Wind,
-              status: airQuality.pm2_5 > 60 ? 'elevated' : 'normal',
+              status: airQuality.pm2_5 > 60 ? 'Elevated' : 'Normal',
+              isElevated: airQuality.pm2_5 > 60,
             },
             {
               label: 'PM10 (Coarse Dust)',
@@ -226,7 +176,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               unit: 'µg/m³',
               desc: 'Road & construction dust',
               icon: Wind,
-              status: airQuality.pm10 > 100 ? 'elevated' : 'normal',
+              status: airQuality.pm10 > 100 ? 'Elevated' : 'Normal',
+              isElevated: airQuality.pm10 > 100,
             },
             {
               label: 'Ozone (O₃)',
@@ -234,7 +185,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               unit: 'µg/m³',
               desc: 'Photochemical smog gas',
               icon: Gauge,
-              status: 'normal',
+              status: airQuality.ozone > 100 ? 'Elevated' : 'Normal',
+              isElevated: airQuality.ozone > 100,
             },
             {
               label: 'Temperature',
@@ -242,7 +194,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               unit: '°C',
               desc: 'Thermal boundary layer',
               icon: Thermometer,
-              status: 'normal',
+              status: weather.temperature < 15 ? 'Cool Trap' : 'Normal',
+              isElevated: weather.temperature < 15,
             },
             {
               label: 'Relative Humidity',
@@ -250,15 +203,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               unit: '%',
               desc: 'Aerosol moisture trap',
               icon: Droplets,
-              status: 'normal',
+              status: weather.humidity > 75 ? 'High RH' : 'Normal',
+              isElevated: weather.humidity > 75,
             },
             {
               label: 'Wind Speed',
               val: `${weather.windSpeed}`,
               unit: 'km/h',
-              desc: weather.windSpeed < 5 ? 'Stagnant dispersion' : 'Active ventilation',
+              desc: weather.windSpeed < 6 ? 'Stagnant dispersion' : 'Active ventilation',
               icon: Wind,
-              status: weather.windSpeed < 6 ? 'elevated' : 'normal',
+              status: weather.windSpeed < 6 ? 'Low Trap' : 'Normal',
+              isElevated: weather.windSpeed < 6,
             },
           ].map((m) => {
             const Icon = m.icon;
@@ -267,17 +222,28 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 key={m.label}
                 className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm"
               >
-                <div className="flex items-center justify-between text-slate-400 mb-2">
-                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider line-clamp-1">
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+                  <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider line-clamp-1">
                     {m.label}
                   </span>
-                  <Icon className="h-3.5 w-3.5" />
+                  <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 </div>
-                <div className="flex items-baseline space-x-1">
-                  <span className="text-xl font-black text-slate-900 dark:text-white">{m.val}</span>
-                  <span className="text-[11px] font-bold text-slate-500">{m.unit}</span>
+                <div className="flex items-baseline justify-between gap-1">
+                  <div className="flex items-baseline space-x-1">
+                    <span className="text-xl font-black text-slate-900 dark:text-white">{m.val}</span>
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{m.unit}</span>
+                  </div>
+                  <span
+                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                      m.isElevated
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                        : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                    }`}
+                  >
+                    {m.status}
+                  </span>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">{m.desc}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">{m.desc}</p>
               </div>
             );
           })}
@@ -288,19 +254,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
-            <Sparkles className="h-5 w-5 text-emerald-200" />
-            <h3 className="font-bold text-base">Generate Personalized AI Action Plan</h3>
+            <Sparkles className="h-5 w-5 text-emerald-200" aria-hidden="true" />
+            <h2 className="font-bold text-base">Generate Personalized AI Action Plan</h2>
           </div>
           <p className="text-xs text-emerald-100 max-w-xl">
             Translate today's AQI ({airQuality.aqi}) and weather conditions into a tailored routine for your {profile.lifestyle.toLowerCase()} lifestyle and family members.
           </p>
         </div>
         <button
+          type="button"
           onClick={() => onNavigate('ai-plan')}
           className="px-6 py-3 bg-white text-emerald-800 hover:bg-emerald-50 rounded-2xl font-bold text-xs transition-colors shrink-0 flex items-center space-x-2 shadow-md"
         >
           <span>Open AI Plan</span>
-          <ArrowRight className="h-4 w-4" />
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
 
@@ -340,20 +307,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           return (
             <button
               key={c.tab}
+              type="button"
               onClick={() => onNavigate(c.tab)}
               className="p-5 rounded-2xl text-left bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 hover:border-emerald-500/50 dark:hover:border-emerald-500/50 shadow-sm transition-all group"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="h-8 w-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-4 w-4" aria-hidden="true" />
                 </div>
-                <span className="text-[10px] uppercase font-bold text-slate-400">
+                <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">
                   {c.badge}
                 </span>
               </div>
-              <h4 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-emerald-600 transition-colors">
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-emerald-600 transition-colors">
                 {c.title}
-              </h4>
+              </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
                 {c.desc}
               </p>

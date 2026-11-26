@@ -113,6 +113,8 @@ export interface UserProfile {
   location: LocationInfo;
 }
 
+export type GeneratedBySource = 'gemini' | 'rules-fallback';
+
 export interface PlanAction {
   time: 'Morning' | 'Commute' | 'Work/Study' | 'Outdoor activity' | 'Evening' | 'Night';
   action: string;
@@ -132,8 +134,15 @@ export interface AIDailyPlan {
   family_guidance: string[];
   sustainability_tip: string;
   safety_note: string;
-  generatedBy: 'gemini' | 'rules-fallback';
+  generatedBy: GeneratedBySource;
   generatedAt: string;
+}
+
+export interface ChatContextUsed {
+  location: string;
+  aqi: number;
+  category: AQICategory;
+  lifestyle: string;
 }
 
 export interface ChatMessage {
@@ -141,12 +150,14 @@ export interface ChatMessage {
   sender: 'user' | 'assistant';
   content: string;
   timestamp: string;
-  contextUsed?: {
-    location: string;
-    aqi: number;
-    category: AQICategory;
-    lifestyle: string;
-  };
+  contextUsed?: ChatContextUsed;
+  generatedBy?: GeneratedBySource;
+}
+
+export interface ChatResponse {
+  reply: string;
+  generatedBy: GeneratedBySource;
+  contextUsed: ChatContextUsed;
 }
 
 export interface ComparatorOption {
@@ -166,4 +177,38 @@ export interface ComparatorResult {
   recommendation: string;
   whyItMatters: string;
   assumptions: string;
+  generatedBy?: GeneratedBySource;
+}
+
+export interface ActionImpactEstimate {
+  actionId: string;
+  actionTitle: string;
+  category: 'commute' | 'energy' | 'indoor' | 'lifestyle';
+  estimatedCo2SavedKg: number;
+  tripsAvoided: number;
+  exposureReductionPercent: number;
+  explanation: string;
+}
+
+export interface ImpactSummary {
+  totalCo2SavedKg: number;
+  totalTripsAvoided: number;
+  estimatedExposureCutPercent: number;
+  airWiseScore: number;
+  streakDays: number;
+  actionsCompleted: number;
+  assumptions: string[];
+}
+
+export interface CommunityStats {
+  title: string;
+  isDemoSample: boolean;
+  notice: string;
+  metrics: {
+    cleanerChoices: number;
+    carTripsAvoided: number;
+    indoorChecklistsCompleted: number;
+    estimatedCo2PreventedKg: number;
+    activeParticipatingHouseholds?: number;
+  };
 }
