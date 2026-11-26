@@ -84,4 +84,11 @@ describe('AirWise AI Frontend Application Tests', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
+  it('recovers gracefully if localStorage contains invalid location data', async () => {
+    localStorage.setItem('airwise_user_profile', JSON.stringify({ location: { name: '' } }));
+    render(<App />);
+    expect(await screen.findByText(/Live Conditions in Hyderabad/i)).toBeInTheDocument();
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/environmental-data?lat=17.385&lon=78.4867'));
+  });
 });

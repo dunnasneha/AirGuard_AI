@@ -32,7 +32,36 @@ export function loadUserProfile(): UserProfile {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.PROFILE);
     if (!raw) return DEFAULT_PROFILE;
-    return { ...DEFAULT_PROFILE, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return DEFAULT_PROFILE;
+
+    const loc = parsed.location;
+    const validLocation =
+      loc &&
+      typeof loc === 'object' &&
+      typeof loc.name === 'string' &&
+      loc.name.trim().length > 0 &&
+      typeof loc.latitude === 'number' &&
+      Number.isFinite(loc.latitude) &&
+      typeof loc.longitude === 'number' &&
+      Number.isFinite(loc.longitude)
+        ? { ...DEFAULT_PROFILE.location, ...loc }
+        : DEFAULT_PROFILE.location;
+
+    const members =
+      parsed.householdMembers && typeof parsed.householdMembers === 'object'
+        ? { ...DEFAULT_PROFILE.householdMembers, ...parsed.householdMembers }
+        : DEFAULT_PROFILE.householdMembers;
+
+    return {
+      ...DEFAULT_PROFILE,
+      ...parsed,
+      householdMembers: members,
+      indoorEnvironment: Array.isArray(parsed.indoorEnvironment)
+        ? parsed.indoorEnvironment
+        : DEFAULT_PROFILE.indoorEnvironment,
+      location: validLocation,
+    };
   } catch {
     return DEFAULT_PROFILE;
   }

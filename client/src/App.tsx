@@ -76,9 +76,13 @@ export const App: React.FC = () => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
+    setError(null);
     try {
       const data = await fetchEnvironmentalData(profile.location);
       setContext(data);
+    } catch (err: any) {
+      console.warn('Environmental data refresh failed:', err);
+      setError("We couldn't retrieve the latest air-quality data. Please try again.");
     } finally {
       setRefreshing(false);
     }

@@ -8,7 +8,24 @@ import {
   UserProfile,
 } from '../types';
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
+function resolveApiBase(): string {
+  const envUrl = ((import.meta as any).env?.VITE_API_URL || '').trim();
+  if (!envUrl) return '/api';
+  if (/^https?:\/\/(localhost|127\.0\.0\.1):5000(\/|$)/i.test(envUrl)) {
+    return '/api';
+  }
+  if (
+    typeof window !== 'undefined' &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1' &&
+    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(envUrl)
+  ) {
+    return '/api';
+  }
+  return envUrl.replace(/\/+$/, '');
+}
+
+const API_BASE = resolveApiBase();
 
 export async function checkServerHealth(): Promise<boolean> {
   try {
@@ -34,13 +51,33 @@ export async function searchCities(query: string): Promise<LocationInfo[]> {
 }
 
 export async function fetchEnvironmentalData(location: LocationInfo): Promise<EnvironmentalContext> {
-  const url = `${API_BASE}/environmental-data?lat=${location.latitude}&lon=${location.longitude}&city=${encodeURIComponent(location.name)}&country=${encodeURIComponent(location.country)}`;
-  
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error("We couldn't retrieve the latest air-quality data. Please try again.");
+  const lat = Number.isFinite(location.latitude) ? location.latitude : 17.385;
+  const lon = Number.isFinite(location.longitude) ? location.longitude : 78.4867;
+  const city = location.name || 'Hyderabad';
+  const country = location.country || 'India';
+  const url = `${API_BASE}/environmental-data?lat=${lat}&lon=${lon}&city=${encodeURIComponent(city)}&country=${encodeURIComponent(country)}`;
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        return await res.json();
+      }
+      if (res.status < 500 && res.status !== 429) {
+        throw new Error("We couldn't retrieve the latest air-quality data. Please try again.");
+      }
+      lastError = new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      lastError = err;
+    }
+    if (attempt === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
   }
-  return await res.json();
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("We couldn't retrieve the latest air-quality data. Please try again.");
 }
 
 export async function fetchAIDailyPlan(
